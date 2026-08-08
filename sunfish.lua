@@ -51,13 +51,13 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608090059"
+local SCRIPT_VERSION = "2.608090107"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish-lua/main/sunfish.lua"
 
 -- What's new in the currently running version. Used as a fallback when
 -- the remote GitHub file can't be reached or parsed (see checkForUpdate).
 local CHANGELOG = {
-   "50-move-rule draw detection",
+   "50-move-rule draw detection TEST",
    "halfmove clock now saved/loaded with game codes",
    "in-app GitHub version check ('u')",
 }
