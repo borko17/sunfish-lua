@@ -7,9 +7,11 @@ A Lua port of [Sunfish](https://github.com/thomasahle/sunfish), a compact chess 
 
 ## Origin
 
-- **Original algorithm & Python implementation:** [Thomas Ahle](https://github.com/thomasahle) — [thomasahle/sunfish](https://github.com/thomasahle/sunfish)
+- **Original algorithm & Python implementation:** [Thomas Ahle](https://github.com/thomasahle) — [thomasahle/sunfish](https://github.com/thomasahle/sunfish) (also documented at [chessprogramming.org/Sunfish](https://www.chessprogramming.org/Sunfish))
 - **Initial Lua transpilation:** attributed to Soumith Chintala
 - **Android / Yantra Launcher adaptation:** [borko17](https://github.com/borko17), with help from Claude AI
+
+Sunfish itself draws heavily on [Micro-Max by Geert Muller](http://home.hccnet.nl/h.g.muller/max-src2.html) and [PyChess](http://pychess.org).
 
 ## What this port changes
 
@@ -75,7 +77,7 @@ local SHOW_ANNOTATIONS = true
 ```
 
 **Letter symbols:**
-
+50-move draw rule
 ```
   +--------------------------+
 8 |  r  n  b  q  k  b  n  r  |
@@ -91,6 +93,8 @@ local SHOW_ANNOTATIONS = true
 ```
 
 
+
+## Requirements
 
 - [Yantra Launcher](https://github.com/coderGtm/yantra-app-launcher) (Luaj-jse 3.0.1)
 - A monospaced font is recommended for board alignment; for Unicode piece mode, a font with good chess-symbol coverage (DejaVu Sans Mono, Julia Mono, Everson Mono, or GNU Unifont) is recommended.
