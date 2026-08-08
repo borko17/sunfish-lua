@@ -58,42 +58,6 @@ local USE_UNICODE_PIECES = false
 local SHOW_ANNOTATIONS = true
 ```
 
-## Display modes
-
-**Unicode symbols:**
-
-```
-  ╔══════════════════════════╗
-8 ║  ♜  ♞  ♝  ♛  ♚  ♝  ♞  ♜  ║
-7 ║  ♟  ♟  ♟  ♟  ♟  ♟  ♟  ♟  ║
-6 ║  •  ◦  •  ◦  •  ◦  •  ◦  ║
-5 ║  ◦  •  ◦  •  ◦  •  ◦  •  ║
-4 ║  •  ◦  •  ◦  •  ◦  •  ◦  ║
-3 ║  ◦  •  ◦  •  ◦  •  ◦  •  ║
-2 ║  ♙  ♙  ♙  ♙  ♙  ♙  ♙  ♙  ║
-1 ║  ♖  ♘  ♗  ♕  ♔  ♗  ♘  ♖  ║
-  ╚══════════════════════════╝
-     a  b  c  d  e  f  g  h
-```
-
-**Letter symbols:**
-50-move draw rule
-```
-  +--------------------------+
-8 |  r  n  b  q  k  b  n  r  |
-7 |  p  p  p  p  p  p  p  p  |
-6 |  :  .  :  .  :  .  :  .  |
-5 |  .  :  .  :  .  :  .  :  |
-4 |  :  .  :  .  :  .  :  .  |
-3 |  .  :  .  :  .  :  .  :  |
-2 |  P  P  P  P  P  P  P  P  |
-1 |  R  N  B  Q  K  B  N  R  |
-  +--------------------------+
-     a  b  c  d  e  f  g  h
-```
-
-
-
 ## Requirements
 
 - [Yantra Launcher](https://github.com/coderGtm/yantra-app-launcher) (Luaj-jse 3.0.1)
