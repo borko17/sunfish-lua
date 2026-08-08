@@ -11,8 +11,6 @@ A Lua port of [Sunfish](https://github.com/thomasahle/sunfish), a compact chess 
 - **Initial Lua transpilation:** attributed to Soumith Chintala
 - **Android / Yantra Launcher adaptation:** [borko17](https://github.com/borko17), with help from Claude AI
 
-This project is a derivative work of the original Sunfish engine and is distributed under the same [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.en.html) license (see [`LICENSE`](./LICENSE.md)).
-
 ## What this port changes
 
 The engine's search and evaluation logic was adapted to run well on a mobile Lua environment (Luaj-jse 3.0.1):
@@ -99,4 +97,4 @@ local SHOW_ANNOTATIONS = true
 
 ## License
 
-This project is a derivative of Sunfish and is distributed under **GNU GPL v3**, as required by the original project's license. See [`LICENSE`](./LICENSE) for the full text.
+This project is a derivative of Sunfish and is distributed under **GNU GPL v3**, as required by the original project's license. See [`LICENSE.md`](./LICENSE.md) for the full text.
