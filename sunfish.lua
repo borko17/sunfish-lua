@@ -57,7 +57,7 @@ local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish-lua/ma
 -- What's new in the currently running version. Used as a fallback when
 -- the remote GitHub file can't be reached or parsed (see checkForUpdate).
 local CHANGELOG = {
-   "50-move-rule draw detection TEST",
+   "50-move-rule draw detection",
    "halfmove clock now saved/loaded with game codes",
    "in-app GitHub version check ('u')",
 }
