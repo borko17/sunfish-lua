@@ -54,6 +54,38 @@ local __1 = 1 -- 1-index correction
 local SCRIPT_VERSION = "2.608081144"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish-lua/main/sunfish.lua"
 
+-- What's new in the currently running version. Used as a fallback when
+-- the remote GitHub file can't be reached or parsed (see checkForUpdate).
+local CHANGELOG = {
+   "50-move-rule draw detection",
+   "halfmove clock now saved/loaded with game codes",
+   "in-app GitHub version check ('u')",
+}
+
+-- Parses a Lua "local CHANGELOG = { \"a\", \"b\", ... }" block out of raw
+-- script text and returns it as a Lua array of strings. Used to read the
+-- changelog straight out of the remote file fetched from GitHub, not the
+-- copy running locally, so 'u' always shows what's new in the latest
+-- version rather than the version currently installed.
+local function parseChangelog(text)
+   local body = text:match('CHANGELOG%s*=%s*{(.-)}')
+   if not body then return nil end
+   local list = {}
+   for entry in body:gmatch('"(.-)"') do
+      table.insert(list, entry)
+   end
+   if #list == 0 then return nil end
+   return list
+end
+
+local function printChangelog(list, versionLabel)
+   print("")
+   print("What's new in v" .. versionLabel .. ":")
+   for _, line in ipairs(list) do
+      print("• " .. line)
+   end
+end
+
 local function checkForUpdate()
    print("Checking version on GitHub...")
 
@@ -81,12 +113,16 @@ local function checkForUpdate()
 
    if not ok or not result or result == '' then
       print("No response from GitHub. Check your connection.")
+      print("Showing changelog for your installed version instead:")
+      printChangelog(CHANGELOG, SCRIPT_VERSION)
       return
    end
 
    local remoteVersion = result:match('SCRIPT_VERSION%s*=%s*"([%d%.]+)"')
    if not remoteVersion then
       print("Could not find a version number in the GitHub file.")
+      print("Showing changelog for your installed version instead:")
+      printChangelog(CHANGELOG, SCRIPT_VERSION)
       return
    end
 
@@ -95,6 +131,14 @@ local function checkForUpdate()
    else
       print("New version available: " .. remoteVersion .. " (current: " .. SCRIPT_VERSION .. ")")
       print("Download at: https://github.com/borko17/sunfish-lua/blob/main/sunfish.lua")
+   end
+
+   local remoteChangelog = parseChangelog(result)
+   if remoteChangelog then
+      printChangelog(remoteChangelog, remoteVersion)
+   else
+      print("Showing changelog for your installed version instead:")
+      printChangelog(CHANGELOG, SCRIPT_VERSION)
    end
 end
 
@@ -684,9 +728,9 @@ local function printboard(board, lastMove, checkers, guards, isMate)
 
    local topBorder, sideBorder, bottomBorder
    if USE_UNICODE_PIECES then
-      topBorder = "  \xe2\x95\x94\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x97"
+      topBorder = "  \xe2\x95\x94\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x97"
       sideBorder = "\xe2\x95\x91"
-      bottomBorder = "  \xe2\x95\x9a\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x9d"
+      bottomBorder = "  \xe2\x95\x9a\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x9d"
    else
       topBorder = "  +" .. string.rep("-", 26) .. "+"
       sideBorder = "|"
@@ -790,6 +834,14 @@ local function capturedAt(pos, move)
    return nil
 end
 
+-- True if the piece moving from move[1] is a pawn. Used to reset the
+-- 50-move-rule halfmove clock, alongside captures (see capturedAt above).
+local function isPawnMove(pos, move)
+   local i = move[0 + __1]
+   local p = pos.board:sub(i + __1, i + __1)
+   return p == 'P'
+end
+
 
 
 local function findKingGuards(p, checkers)
@@ -874,7 +926,7 @@ end
 -- Save/Load game functions
 -------------------------------------------------------------------------------
 
-local function saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves)
+local function saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock)
    local pieces = {}
    for i = 21, 98 do
       local c = pos.board:sub(i + __1, i + __1)
@@ -901,7 +953,7 @@ local function saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMo
 
    local code = boardStr .. '|' .. wcStr .. '|' .. bcStr .. '|' .. epStr .. '|' .. 
                 lastMoveStr .. '|' .. userCapStr .. '|' .. engineCapStr .. '|' .. 
-                whiteMoves .. '|' .. blackMoves
+                whiteMoves .. '|' .. blackMoves .. '|' .. (halfmoveClock or 0)
 
    return code
 end
@@ -913,7 +965,7 @@ local function loadGame(code)
    end
 
    if #parts < 9 then
-      print("Invalid code! Expected 9 parts, got " .. #parts)
+      print("Invalid code! Expected at least 9 parts, got " .. #parts)
       return nil
    end
 
@@ -926,6 +978,7 @@ local function loadGame(code)
    local engineCapStr = parts[7]
    local whiteMoves = tonumber(parts[8]) or 0
    local blackMoves = tonumber(parts[9]) or 0
+   local halfmoveClock = tonumber(parts[10]) or 0
 
    if #boardStr ~= 64 then
       print("Invalid board! Expected 64 characters, got " .. #boardStr)
@@ -969,7 +1022,7 @@ local function loadGame(code)
       lastMove = {parse(lastMoveStr:sub(1,2)), parse(lastMoveStr:sub(3,4))}
    end
 
-   return pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves
+   return pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock
 end
 
 local function displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
@@ -1006,6 +1059,10 @@ local function showHelp()
    print("'n' - Start a new game")
    print("'u' - Check sunfish.lua update")
    print("'q' - Quit chess.lua")
+   print("")
+   print("Note: draws are auto-declared under")
+   print("the 50-move-no-progress rule (no")
+   print("capture or pawn move in 50 moves)")
    print("")
    print("COMMANDS FOR PUZZLE MODE:")
    print("-------------")
@@ -1108,6 +1165,7 @@ local function showAbout()
    print("EXTRA FEATURES:")
    print("-------------")
    print("• Full legal-move / check / stalemate detection")
+   print("• 50-move-rule draw detection")
    print("• Save & Load games via text codes")
    print("• Unicode or letter piece display")
    print("• Check / guard / last-move board markers")
@@ -1409,6 +1467,7 @@ local function main()
    local lastMove = nil
    local whiteMoves = 0
    local blackMoves = 0
+   local halfmoveClock = 0  -- resets on capture or pawn move; draw at 100 (50 full moves)
    
    print("")
    print("=== sunfish.lua v" .. SCRIPT_VERSION .." ===")
@@ -1449,7 +1508,7 @@ while true do
       print("Display mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 's' then
-      local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves)
+      local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock)
       print("\n=== GAME CODE ===")
       print(code)
       print("================")
@@ -1467,6 +1526,7 @@ while true do
          capturedByEngine = result[4]
          whiteMoves = result[5]
          blackMoves = result[6]
+         halfmoveClock = result[7] or 0
          print("=== GAME CODE ===")
          print(code)
          print("================")
@@ -1526,6 +1586,12 @@ end
 
 
       local userCap = capturedAt(pos, usermove)
+      local userPawnMove = isPawnMove(pos, usermove)
+      if userCap or userPawnMove then
+         halfmoveClock = 0
+      else
+         halfmoveClock = halfmoveClock + 1
+      end
       if userCap then table.insert(capturedByUser, userCap) end
       pos = pos:move(usermove)
 
@@ -1553,6 +1619,10 @@ end
       end
       if not engineHasMove then
          print("Stalemate - draw!")
+         break
+      end
+      if halfmoveClock >= 100 then
+         print("Draw by 50-move rule!")
          break
       end
 
@@ -1587,6 +1657,12 @@ end
       end
 
       local engineCap = capturedAt(pos, enginemove)
+      local enginePawnMove = isPawnMove(pos, enginemove)
+      if engineCap or enginePawnMove then
+         halfmoveClock = 0
+      else
+         halfmoveClock = halfmoveClock + 1
+      end
       if engineCap then table.insert(capturedByEngine, engineCap) end
 
       local engineMoveNotation = render(119-enginemove[0 + __1]) .. render(119-enginemove[1 + __1])
@@ -1597,6 +1673,12 @@ blackMoves = blackMoves + 1
 -- Reset score
 pos.score = 0  -- CRITICAL!
       lastMove = {119 - enginemove[1], 119 - enginemove[2]}
+
+      if halfmoveClock >= 100 then
+         printboard(pos.board, lastMove, {}, {})
+         print("Draw by 50-move rule!")
+         break
+      end
 
       if score >= MATE_VALUE then
    -- First check if it's actually mate, not just what score says
