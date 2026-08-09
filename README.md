@@ -34,23 +34,35 @@ The engine's search and evaluation logic was adapted to run well on a mobile Lua
 
 ## Usage
 
-Load `sunfish.lua` as a script in Yantra Launcher. In-game commands:
+Load `sunfish.lua` as a script in Yantra Launcher.
 
-| Key | Action |
-|-----|--------|
-| `e2e4` (etc.) | Enter a move in coordinate notation |
-| `h` | Show help |
-| `?` | Show about screen |
-| `d` | Toggle display mode (Unicode ↔ letters) |
-| `a` | Toggle board annotations |
-| `s` | Save game (generates a code) |
-| `sN` | Save position as of move N (e.g. 's15' saves after move 15) |
-| `l` | Load a saved game |
-| `r` | Resign |
-| `n` | Start a new game |
-| `u` | Check sunfish.lua update |
-| `m1` | Enter mate-in-1 puzzle mode |
-| `q` | Quit |
+**Normal game commands:**
+
+| Key           | Action                                                      |
+| ------------- | ----------------------------------------------------------- |
+| `e2e4` (etc.) | Enter a move in coordinate notation                         |
+| `h`           | Show help                                                   |
+| `?`           | Show about screen                                           |
+| `d`           | Toggle display mode (Unicode ↔ letters)                     |
+| `a`           | Toggle board annotations                                    |
+| `s`           | Save game (generates a code)                                |
+| `sN`          | Save position as of move N (e.g. 's15' saves after move 15) |
+| `l`           | Load a saved game                                           |
+| `r`           | Resign                                                      |
+| `n`           | Start a new game                                            |
+| `u`           | Check sunfish.lua update                                    |
+| `m1`          | Enter mate-in-1 puzzle mode                                 |
+| `q`           | Quit                                                         |
+
+**Mate-in-1 puzzle mode (`m1`) commands:**
+
+| Key | Action                                       |
+| --- | --------------------------------------------- |
+| `h` | Hint                                          |
+| `d` | Toggle display mode (Unicode ↔ letters)       |
+| `s` | Save puzzle                                   |
+| `l` | Load puzzle                                   |
+| `q` | Exit puzzle mode, return to normal game        |
 
 Display mode and annotation defaults can be set at the top of the script:
 
