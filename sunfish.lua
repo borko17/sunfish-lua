@@ -51,7 +51,7 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608090107"
+local SCRIPT_VERSION = "2.608090215"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish-lua/main/sunfish.lua"
 
 -- What's new in the currently running version. Used as a fallback when
@@ -60,6 +60,9 @@ local CHANGELOG = {
    "50-move-rule draw detection",
    "halfmove clock now saved/loaded with game codes",
    "in-app GitHub version check ('u')",
+   "'m' shows the full move history",
+   "'sN' saves the position as of move N",
+   "loaded games now correctly resume with the right side to move",
 }
 
 -- Parses a Lua "local CHANGELOG = { \"a\", \"b\", ... }" block out of raw
@@ -926,7 +929,7 @@ end
 -- Save/Load game functions
 -------------------------------------------------------------------------------
 
-local function saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock)
+local function saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, nextToMove)
    local pieces = {}
    for i = 21, 98 do
       local c = pos.board:sub(i + __1, i + __1)
@@ -951,9 +954,15 @@ local function saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMo
       lastMoveStr = render(lastMove[1]) .. render(lastMove[2])
    end
 
+   -- "b" = Sunfish moves next (the normal case: 's' saves the position
+   -- right after your move, before Sunfish replies). "w" = you move next
+   -- (used by 'sN' snapshots, where Sunfish's reply to move N was already
+   -- played and recorded before the snapshot was taken).
+   local nextStr = (nextToMove == "w") and "w" or "b"
+
    local code = boardStr .. '|' .. wcStr .. '|' .. bcStr .. '|' .. epStr .. '|' .. 
                 lastMoveStr .. '|' .. userCapStr .. '|' .. engineCapStr .. '|' .. 
-                whiteMoves .. '|' .. blackMoves .. '|' .. (halfmoveClock or 0)
+                whiteMoves .. '|' .. blackMoves .. '|' .. (halfmoveClock or 0) .. '|' .. nextStr
 
    return code
 end
@@ -979,6 +988,7 @@ local function loadGame(code)
    local whiteMoves = tonumber(parts[8]) or 0
    local blackMoves = tonumber(parts[9]) or 0
    local halfmoveClock = tonumber(parts[10]) or 0
+   local nextToMove = parts[11] or "b"  -- old codes (no 11th field) always meant Sunfish's turn next
 
    if #boardStr ~= 64 then
       print("Invalid board! Expected 64 characters, got " .. #boardStr)
@@ -1022,7 +1032,7 @@ local function loadGame(code)
       lastMove = {parse(lastMoveStr:sub(1,2)), parse(lastMoveStr:sub(3,4))}
    end
 
-   return pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock
+   return pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, nextToMove
 end
 
 local function displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
@@ -1054,7 +1064,11 @@ local function showHelp()
    print("'a' - Toggle annotations")
    print("(show/hide board markers)")
    print("'s' - Save game (generate code)")
+   print("'sN' - Save position as of move N")
+   print("(e.g. 's15' saves after move 15,")
+   print("even if you've played further)")
    print("'l' - Load saved game")
+   print("'m' - Show move history")
    print("'r' - Resign current game")
    print("'n' - Start a new game")
    print("'u' - Check sunfish.lua update")
@@ -1150,7 +1164,7 @@ local function showAbout()
    print("Adapted for Yantra Launcher") 
    print("on Android (Luaj-jse 3.0.1)")
    print("by borko17 (github.com/borko17),")
-   print("with help from Claude AI.")
+   print("with help from Claude Sonnet 5.")
    print("")
    print("Original Python code license: BSD")
    print("")
@@ -1167,6 +1181,7 @@ local function showAbout()
    print("• Full legal-move / check / stalemate detection")
    print("• 50-move-rule draw detection")
    print("• Save & Load games via text codes")
+   print("• Move history ('m') and per-move save ('sN')")
    print("• Unicode or letter piece display")
    print("• Check / guard / last-move board markers")
    print("• Captured-piece tracking")
@@ -1468,6 +1483,16 @@ local function main()
    local whiteMoves = 0
    local blackMoves = 0
    local halfmoveClock = 0  -- resets on capture or pawn move; draw at 100 (50 full moves)
+   -- Full move history, in order, one entry per ply. Each entry is a table
+   -- {notation = "e2e4", by = "you"/"sunfish"}. Used by the 'm' command
+   -- (move list) and by 's<N>' (save the position as of move N).
+   local moveHistory = {}
+   -- Snapshot of every full state after each of your moves, keyed by move
+   -- number (1-based, matching what's shown as "Your N. move"). Lets
+   -- 's<N>' save the position as it was after move N even if you've since
+   -- played further. Stored only after your (White's) moves, since that's
+   -- the natural "move number" a player thinks in.
+   local moveSnapshots = {}
    
    print("")
    print("=== sunfish.lua v" .. SCRIPT_VERSION .." ===")
@@ -1508,11 +1533,44 @@ while true do
       print("Display mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 's' then
-      local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock)
+      local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w")
       print("\n=== GAME CODE ===")
       print(code)
       print("================")
       print("Current position:")
+      displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
+   elseif crdn:match('^s%d+$') then
+      local n = tonumber(crdn:match('^s(%d+)$'))
+      local snap = moveSnapshots[n]
+      if not snap then
+         print("No snapshot for move " .. n .. ". You've played " .. whiteMoves .. " move(s) so far.")
+      else
+         local code = saveGame(snap.pos, snap.lastMove, snap.capturedByUser, snap.capturedByEngine,
+                                snap.whiteMoves, snap.blackMoves, snap.halfmoveClock, "b")
+         print("\n=== GAME CODE (as of move " .. n .. ") ===")
+         print(code)
+         print("================")
+      end
+      displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
+   elseif crdn == 'm' then
+      if #moveHistory == 0 then
+         print("No moves played yet.")
+      else
+         print("\n=== MOVE LIST ===")
+         local i = 1
+         while i <= #moveHistory do
+            local w = moveHistory[i]
+            local bEntry = moveHistory[i + 1]
+            local moveNum = math.floor((i + 1) / 2)
+            local line = moveNum .. ". " .. w.notation
+            if bEntry then
+               line = line .. "  " .. bEntry.notation
+            end
+            print(line)
+            i = i + 2
+         end
+         print("================")
+      end
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'l' then
    print("Paste game code:")
@@ -1527,13 +1585,66 @@ while true do
          whiteMoves = result[5]
          blackMoves = result[6]
          halfmoveClock = result[7] or 0
+         local nextToMove = result[8] or "b"
+         moveHistory = {}
+         moveSnapshots = {}
          print("=== GAME CODE ===")
          print(code)
          print("================")
          print("Game loaded!\n")
 
+         if nextToMove == "b" then
+            -- It's Sunfish's turn: show your move that was saved (lastMove
+            -- holds it in this case), then play Sunfish's reply now, same
+            -- as it would have happened right after your move in a live
+            -- game, so control correctly returns to you afterward.
+            if lastMove then
+               print("Your move: \n" .. render(lastMove[1]) .. render(lastMove[2]))
+               print(renderCaptured(capturedByUser, whiteSymbols))
+               local checkersAfterYourMove = findCheckers(pos)
+               local guardsAfterYourMove = findKingGuards(pos, checkersAfterYourMove)
+               if next(checkersAfterYourMove) then
+                  print("Check!")
+               end
+               printboard(pos.board, lastMove, checkersAfterYourMove, guardsAfterYourMove)
+            end
+            local rotated = pos:rotate()
+            print("Sunfish is thinking...")
+            local enginemove, score = search(rotated)
+            if enginemove and not isLegalMove(rotated, enginemove) then
+               enginemove = nil
+            end
+            if not enginemove then
+               local legal = legalMovesOf(rotated)
+               if #legal > 0 then
+                  table.sort(legal, function(a, b) return rotated:value(a) > rotated:value(b) end)
+                  enginemove = legal[1]
+               end
+            end
+            if enginemove then
+               local engineCap = capturedAt(rotated, enginemove)
+               local enginePawnMove = isPawnMove(rotated, enginemove)
+               if engineCap or enginePawnMove then
+                  halfmoveClock = 0
+               else
+                  halfmoveClock = halfmoveClock + 1
+               end
+               if engineCap then table.insert(capturedByEngine, engineCap) end
+               local engineMoveNotation = render(119-enginemove[0 + __1]) .. render(119-enginemove[1 + __1])
+               print("Sunfish move: \n" .. engineMoveNotation)
+               print(renderCaptured(capturedByEngine, blackSymbols))
+               table.insert(moveHistory, {notation = engineMoveNotation, by = "sunfish"})
+               pos = rotated:move(enginemove)
+               blackMoves = blackMoves + 1
+               pos.score = 0
+               lastMove = {119 - enginemove[1], 119 - enginemove[2]}
+            else
+               print("Sunfish has no legal move (checkmate or stalemate).")
+            end
+         end
+
          -- Show engine's move (which is saved in lastMove)
-         if lastMove then
+         if lastMove and nextToMove ~= "b" then
             print("Sunfish move: \n" .. render(lastMove[1]) .. render(lastMove[2]))
             print(renderCaptured(capturedByEngine, blackSymbols))
          end
@@ -1593,7 +1704,26 @@ end
          halfmoveClock = halfmoveClock + 1
       end
       if userCap then table.insert(capturedByUser, userCap) end
+      table.insert(moveHistory, {
+         notation = render(usermove[1]) .. render(usermove[2]),
+         by = "you"
+      })
       pos = pos:move(usermove)
+
+      -- Snapshot the position as of this move number, for 's<N>' later.
+      -- pos is in Black's (rotated) view here, since Position:move()
+      -- rotates internally - store the White-view rotation instead, to
+      -- match what saveGame()/loadGame() expect (the same orientation
+      -- used right after Sunfish's replies elsewhere in this loop).
+      moveSnapshots[whiteMoves] = {
+         pos = pos:rotate(),
+         lastMove = {usermove[1], usermove[2]},
+         capturedByUser = {table.unpack(capturedByUser)},
+         capturedByEngine = {table.unpack(capturedByEngine)},
+         whiteMoves = whiteMoves,
+         blackMoves = blackMoves,
+         halfmoveClock = halfmoveClock,
+      }
 
       local checkersAfterUser = findCheckers(pos)
       local guardsAfterUser = findKingGuards(pos, checkersAfterUser)
@@ -1668,6 +1798,7 @@ end
       local engineMoveNotation = render(119-enginemove[0 + __1]) .. render(119-enginemove[1 + __1])
 print("Sunfish ".. (blackMoves + 1) ..". move: \n" .. engineMoveNotation)
 print(renderCaptured(capturedByEngine, blackSymbols))
+table.insert(moveHistory, {notation = engineMoveNotation, by = "sunfish"})
 pos = pos:move(enginemove)
 blackMoves = blackMoves + 1
 -- Reset score
