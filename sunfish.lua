@@ -3,7 +3,7 @@
 --   1. Original algorithm: Sunfish (Python) by Thomas Ahle
 --  https://github.com/thomasahle/sunfish - BSD license
 --  2. Initial Lua transpilation attributed to Soumith Chintala
---  3. Extended for Yantra Launcher / Android (Luaj-jse 3.0.1), with UI, save/load, puzzle mode, and search tuning, by borko17 (https://github.com/borko17/sunfish-lua), with help from Claude AI.
+--  3. Extended for Yantra Launcher / Android (Luaj-jse 3.0.1), with UI, save/load, puzzle mode, and search tuning, by borko17 (https://github.com/borko17/sunfish-lua) (with help from Claude AI).
 
 -------------------------------------------------------------------------------
 -- CONFIG: Options at the top
