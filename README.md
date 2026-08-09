@@ -35,14 +35,20 @@ The engine's search and evaluation logic was adapted to run well on a mobile Lua
 ## Screenshots
 
 
-**Letters mode**
+
+**Letters mode:**
+
 
 ![Letters mode](docs/screenshots/screenshot01.jpg)
 
 
-**Unicode mode**
+
+**Unicode mode:**
+
 
 ![Unicode mode](docs/screenshots/screenshot02.jpg)
+
+
 
 ## Usage
 
