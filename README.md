@@ -74,7 +74,7 @@ local SHOW_ANNOTATIONS = true
 ## Requirements
 
 - [Yantra Launcher Pro](https://github.com/coderGtm/yantra-app-launcher) (Luaj-jse 3.0.1)
-- A monospaced font is recommended for board alignment; for Unicode piece mode, a font with good chess-symbol coverage (DejaVu Sans Mono, Julia Mono, Everson Mono, or GNU Unifont) is recommended.
+- A monospaced font is recommended for board alignment; for Unicode piece mode, a font with good chess-symbol coverage ([DejaVu Sans Mono](https://github.com/dejavu-fonts/dejavu-fonts), [Julia Mono](https://juliamono.netlify.app/), [Everson Mono](https://www.evertype.com/emono/), or [Unifont](https://github.com/multitheftauto/unifont)) is recommended.
 
 ## License
 
