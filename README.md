@@ -1,7 +1,7 @@
 ![Sunfish logo](https://raw.github.com/borko17/sunfish-lua/master/docs/logo/Sunfish.png)
 
 # sunfish-lua
-Lua port of the Sunfish chess engine for Android/Yantra Launcher
+Lua port of the Sunfish chess engine for Android/Yantra Launcher Pro
 
 # sunfish.lua
 
