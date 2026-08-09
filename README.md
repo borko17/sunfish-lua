@@ -3,13 +3,13 @@ Lua port of the Sunfish chess engine for Android/Yantra Launcher
 
 # sunfish.lua
 
-A Lua port of [Sunfish](https://github.com/thomasahle/sunfish), a compact chess engine originally written in Python by Thomas Ahle, adapted to run on Android inside [Yantra Launcher](https://github.com/coderGtm/yantra-app-launcher) (Luaj-jse 3.0.1).
+A Lua port of [Sunfish](https://github.com/thomasahle/sunfish), a compact chess engine originally written in Python by Thomas Ahle, adapted to run on Android inside [Yantra Launcher Pro](https://github.com/coderGtm/yantra-app-launcher) (Luaj-jse 3.0.1).
 
 ## Origin
 
 - **Original algorithm & Python implementation:** [Thomas Ahle](https://github.com/thomasahle) — [thomasahle/sunfish](https://github.com/thomasahle/sunfish) (also documented at [chessprogramming.org/Sunfish](https://www.chessprogramming.org/Sunfish))
 - **Initial Lua transpilation:** attributed to Soumith Chintala
-- **Android / Yantra Launcher adaptation:** [borko17](https://github.com/borko17), with help from Claude AI
+- **Android / Yantra Launcher Pro adaptation:** [borko17](https://github.com/borko17), with help from Claude AI
 
 Sunfish itself draws heavily on [Micro-Max by Geert Muller](http://home.hccnet.nl/h.g.muller/max-src2.html) and [PyChess](http://pychess.org).
 
@@ -60,7 +60,7 @@ local SHOW_ANNOTATIONS = true
 
 ## Requirements
 
-- [Yantra Launcher](https://github.com/coderGtm/yantra-app-launcher) (Luaj-jse 3.0.1)
+- [Yantra Launcher Pro](https://github.com/coderGtm/yantra-app-launcher) (Luaj-jse 3.0.1)
 - A monospaced font is recommended for board alignment; for Unicode piece mode, a font with good chess-symbol coverage (DejaVu Sans Mono, Julia Mono, Everson Mono, or GNU Unifont) is recommended.
 
 ## License
