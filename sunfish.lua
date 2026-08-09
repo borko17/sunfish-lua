@@ -3,7 +3,7 @@
 --   1. Original algorithm: Sunfish (Python) by Thomas Ahle
 --  https://github.com/thomasahle/sunfish - BSD license
 --  2. Initial Lua transpilation attributed to Soumith Chintala
---  3. Extended for Yantra Launcher Pro / Android (Luaj-jse 3.0.1), with UI, save/load, puzzle mode, and search tuning, by borko17 (https://github.com/borko17/sunfish-lua), with help from Claude AI.
+--  3. Extended for Yantra Launcher / Android (Luaj-jse 3.0.1), with UI, save/load, puzzle mode, and search tuning, by borko17 (https://github.com/borko17/sunfish-lua), with help from Claude AI.
 
 -------------------------------------------------------------------------------
 -- CONFIG: Options at the top
@@ -51,7 +51,7 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608091442"
+local SCRIPT_VERSION = "2.608091436"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish-lua/main/sunfish.lua"
 
 -- What's new in the currently running version. Used as a fallback when
@@ -1165,7 +1165,7 @@ local function showAbout()
    print("transpilation is attributed")
    print("to Soumith Chintala.")
    print("")
-   print("Adapted for Yantra Launcher Pro") 
+   print("Adapted for Yantra Launcher") 
    print("on Android (Luaj-jse 3.0.1)")
    print("by borko17 (github.com/borko17),")
    print("with help from Claude AI.")
@@ -1568,6 +1568,7 @@ while true do
       if not snap then
           print("----")
          print("No snapshot for move " .. n .. ". You've played " .. whiteMoves .. " move(s) so far.")
+         print("")
       else
          local code = saveGame(snap.pos, snap.lastMove, snap.capturedByUser, snap.capturedByEngine,
                                 snap.whiteMoves, snap.blackMoves, snap.halfmoveClock, "b")
