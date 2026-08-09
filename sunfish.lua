@@ -51,7 +51,7 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608081144"
+local SCRIPT_VERSION = "2.608091442"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish-lua/main/sunfish.lua"
 
 -- What's new in the currently running version. Used as a fallback when
@@ -1371,12 +1371,14 @@ local function attemptAiPuzzle(board)
       return false, true
    end
    if crdn == 'q' then
+       print("----")
       print("Leaving puzzle mode.")
       return false, true
    end
    if crdn == 'd' then
    USE_UNICODE_PIECES = not USE_UNICODE_PIECES
    updateDisplayMode()
+   print("----")
    print("Mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
    return false, false
 end
@@ -1391,12 +1393,16 @@ if crdn == 's' then
       end
    end
    local boardStr = table.concat(pieces)
-   print("\n=== PUZZLE CODE ===\n\n" .. boardStr .. "\n==================")
+   print("----")
+   print("=== PUZZLE CODE ===")
+   print(boardStr) 
+   print("==================")
    return false, false
 end
 
 -- Load puzzle
 if crdn == 'l' then
+    print("----")
    print("Paste puzzle code:")
    local code = input()
    if code and code ~= '' and #code == 64 then
@@ -1421,6 +1427,7 @@ local move = {parse(crdn:sub(1,2)), parse(crdn:sub(3,4))}
    if crdn == 'h' then
       local mv = findMateIn1Move(curPos)
       if mv then
+          print("----")
          print("Solution: " .. render(mv[0 + __1]) .. render(mv[1 + __1]) .. " (mate)")
       else
          print("Couldn't find a solution (shouldn't happen).")
@@ -1530,23 +1537,28 @@ while true do
       goto continue
    end
    if crdn == 'q' then
+       print("----")
       print("Quitting game.")
       return
-      elseif crdn == 'u' then
+   elseif crdn == 'u' then
+      print("----")
    checkForUpdate()
    displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       elseif crdn == 'a' then
    SHOW_ANNOTATIONS = not SHOW_ANNOTATIONS
+   print("----")
    print("Annotations: " .. (SHOW_ANNOTATIONS and "ON" or "OFF"))
    displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'd' then
       USE_UNICODE_PIECES = not USE_UNICODE_PIECES
       updateDisplayMode()
+      print("----")
       print("Display mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 's' then
       local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w")
-      print("\n=== GAME CODE ===")
+      print("----")
+      print("=== GAME CODE ===")
       print(code)
       print("================")
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
@@ -1554,19 +1566,23 @@ while true do
       local n = tonumber(crdn:match('^s(%d+)$'))
       local snap = moveSnapshots[n]
       if not snap then
+          print("----")
          print("No snapshot for move " .. n .. ". You've played " .. whiteMoves .. " move(s) so far.")
       else
          local code = saveGame(snap.pos, snap.lastMove, snap.capturedByUser, snap.capturedByEngine,
                                 snap.whiteMoves, snap.blackMoves, snap.halfmoveClock, "b")
-         print("\n=== GAME CODE (as of move " .. n .. ") ===")
+        print("----")
+         print("=== GAME CODE (as of move " .. n .. ") ===")
          print(code)
          print("================")
       end
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'm' then
       if #moveHistory == 0 then
+          print("----")
          print("No moves played yet.")
       else
+          print("----")
          print("\n=== MOVE LIST ===")
          local i = 1
          while i <= #moveHistory do
@@ -1584,6 +1600,7 @@ while true do
       end
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'l' then
+       print("----")
    print("Paste game code:")
    local code = input()
    if code and code ~= '' then
@@ -1599,6 +1616,7 @@ while true do
          local nextToMove = result[8] or "b"
          moveHistory = {}
          moveSnapshots = {}
+         print("----")
          print("=== GAME CODE ===")
          print(code)
          print("================")
@@ -1670,23 +1688,29 @@ while true do
          print(renderCaptured(capturedByUser, blackSymbols))
       else
          print("Invalid code. Game continues.")
+         print("")
       end
    end
    elseif crdn == 'r' then
+       print("----")
       print("You resigned. Black wins!")
       return
    elseif crdn == 'n' then
+       print("----")
       print("Starting new game...")
       return main()
    elseif crdn == 'h' then
+       print("----")
       showHelp()
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == '?' then
+       print("----")
       showAbout()
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'm1' then
       aipuzMate1()
       print("Resuming the game.")
+      print("")
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    else
       usermove = {parse(crdn:sub(1,2)), parse(crdn:sub(3,4))}
