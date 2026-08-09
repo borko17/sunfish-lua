@@ -3,7 +3,7 @@
 --   1. Original algorithm: Sunfish (Python) by Thomas Ahle
 --  https://github.com/thomasahle/sunfish - BSD license
 --  2. Initial Lua transpilation attributed to Soumith Chintala
---  3. Extended for Yantra Launcher / Android (Luaj-jse 3.0.1), with UI, save/load, puzzle mode, and search tuning, by borko17 (https://github.com/borko17/sunfish-lua), with help from Claude Sonnet 5.
+--  3. Extended for Yantra Launcher Pro / Android (Luaj-jse 3.0.1), with UI, save/load, puzzle mode, and search tuning, by borko17 (https://github.com/borko17/sunfish-lua), with help from Claude AI.
 
 -------------------------------------------------------------------------------
 -- CONFIG: Options at the top
@@ -51,7 +51,7 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608090215"
+local SCRIPT_VERSION = "2.608090722"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish-lua/main/sunfish.lua"
 
 -- What's new in the currently running version. Used as a fallback when
@@ -90,6 +90,7 @@ local function printChangelog(list, versionLabel)
 end
 
 local function checkForUpdate()
+   print("")
    print("Checking version on GitHub...")
 
    local ok, result = pcall(function()
@@ -731,9 +732,9 @@ local function printboard(board, lastMove, checkers, guards, isMate)
 
    local topBorder, sideBorder, bottomBorder
    if USE_UNICODE_PIECES then
-      topBorder = "  \xe2\x95\x94\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x97"
+      topBorder = "  \xe2\x95\x94\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x97"
       sideBorder = "\xe2\x95\x91"
-      bottomBorder = "  \xe2\x95\x9a\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x9d"
+      bottomBorder = "  \xe2\x95\x9a\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x9d"
    else
       topBorder = "  +" .. string.rep("-", 26) .. "+"
       sideBorder = "|"
@@ -1161,10 +1162,10 @@ local function showAbout()
    print("transpilation is attributed")
    print("to Soumith Chintala.")
    print("")
-   print("Adapted for Yantra Launcher") 
+   print("Adapted for Yantra Launcher Pro") 
    print("on Android (Luaj-jse 3.0.1)")
    print("by borko17 (github.com/borko17),")
-   print("with help from Claude Sonnet 5.")
+   print("with help from Claude AI.")
    print("")
    print("Original Python code license: BSD")
    print("")
@@ -1363,16 +1364,18 @@ local function attemptAiPuzzle(board)
    print("Find mate in 1 move: ")
    local crdn = input()
    if not crdn then
-      print("\nNo input (EOF). Ending puzzle mode.")
+      print("No input (EOF). Ending puzzle mode.")
       return false, true
    end
    if crdn == 'q' then
+      print("")
       print("Leaving puzzle mode.")
       return false, true
    end
    if crdn == 'd' then
    USE_UNICODE_PIECES = not USE_UNICODE_PIECES
    updateDisplayMode()
+   print("")
    print("Mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
    return false, false
 end
@@ -1387,12 +1390,14 @@ if crdn == 's' then
       end
    end
    local boardStr = table.concat(pieces)
-   print("\n=== PUZZLE CODE ===\n" .. boardStr .. "\n==================")
+   print("")
+   print("=== PUZZLE CODE ===\n" .. boardStr .. "\n==================")
    return false, false
 end
 
 -- Load puzzle
 if crdn == 'l' then
+   print("")
    print("Paste puzzle code:")
    local code = input()
    if code and code ~= '' and #code == 64 then
@@ -1417,8 +1422,10 @@ local move = {parse(crdn:sub(1,2)), parse(crdn:sub(3,4))}
    if crdn == 'h' then
       local mv = findMateIn1Move(curPos)
       if mv then
+          print("")
          print("Solution: " .. render(mv[0 + __1]) .. render(mv[1 + __1]) .. " (mate)")
       else
+          print("")
          print("Couldn't find a solution (shouldn't happen).")
       end
       return false, false
@@ -1448,12 +1455,16 @@ local move = {parse(crdn:sub(1,2)), parse(crdn:sub(3,4))}
 end
 
 local function aipuzMate1()
-   print("Puzzle mode: mate in 1.")
+    print("")
+   print("=== Puzzle mode: mate in 1. ===")
+   print("")
    print("• 'h' for hint")
    print("• 'q' to quit.")
+   print("")
    print("Generating puzzle, please wait...")
    local board = genAiMateIn1()
    if not board then
+       print("")
       print("Couldn't generate a puzzle, try again.")
       return
    end
@@ -1461,9 +1472,11 @@ local function aipuzMate1()
       local solved, quit = attemptAiPuzzle(board)
       if quit then return end
       if solved then
+          print("")
          print("Generating new puzzle...")
          board = genAiMateIn1()
          if not board then
+             print("")
             print("Couldn't generate a new puzzle, try again.")
             return
          end
@@ -1496,6 +1509,7 @@ local function main()
    
    print("")
    print("=== sunfish.lua v" .. SCRIPT_VERSION .." ===")
+   print("")
    print("• 'h' for help")
    print("• 'q' to quit.")
 
@@ -1516,8 +1530,8 @@ while true do
       print("\nNo input from terminal (EOF). Ending game.")
       return
    end
-   print(crdn)
    if crdn == 'q' then
+      print("")
       print("Quitting game.")
       return
       elseif crdn == 'u' then
@@ -1525,18 +1539,22 @@ while true do
    displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       elseif crdn == 'a' then
    SHOW_ANNOTATIONS = not SHOW_ANNOTATIONS
+   print("")
    print("Annotations: " .. (SHOW_ANNOTATIONS and "ON" or "OFF"))
    displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'd' then
       USE_UNICODE_PIECES = not USE_UNICODE_PIECES
       updateDisplayMode()
+      print("")
       print("Display mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 's' then
       local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w")
-      print("\n=== GAME CODE ===")
+      print("")
+      print("=== GAME CODE ===")
       print(code)
       print("================")
+      print("")
       print("Current position:")
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn:match('^s%d+$') then
@@ -1547,16 +1565,19 @@ while true do
       else
          local code = saveGame(snap.pos, snap.lastMove, snap.capturedByUser, snap.capturedByEngine,
                                 snap.whiteMoves, snap.blackMoves, snap.halfmoveClock, "b")
-         print("\n=== GAME CODE (as of move " .. n .. ") ===")
+         print("")
+         print("=== GAME CODE (as of move " .. n .. ") ===")
          print(code)
          print("================")
       end
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'm' then
       if #moveHistory == 0 then
+         print("")
          print("No moves played yet.")
       else
-         print("\n=== MOVE LIST ===")
+         print("")
+         print("=== MOVE LIST ===")
          local i = 1
          while i <= #moveHistory do
             local w = moveHistory[i]
@@ -1573,6 +1594,7 @@ while true do
       end
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'l' then
+   print("")
    print("Paste game code:")
    local code = input()
    if code and code ~= '' then
@@ -1588,6 +1610,7 @@ while true do
          local nextToMove = result[8] or "b"
          moveHistory = {}
          moveSnapshots = {}
+         print("")
          print("=== GAME CODE ===")
          print(code)
          print("================")
@@ -1665,6 +1688,7 @@ while true do
       print("You resigned. Black wins!")
       return
    elseif crdn == 'n' then
+      print("")
       print("Starting new game...")
       return main()
    elseif crdn == 'h' then
