@@ -51,7 +51,7 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608091604"
+local SCRIPT_VERSION = "2.608091715"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish-lua/main/sunfish.lua"
 
 -- What's new in the currently running version. Used as a fallback when
@@ -1508,7 +1508,7 @@ local function main()
    -- played further. Stored only after your (White's) moves, since that's
    -- the natural "move number" a player thinks in.
    local moveSnapshots = {}
-   
+
    print("")
    print("=== sunfish.lua v" .. SCRIPT_VERSION .." ===")
    print("")
@@ -1548,12 +1548,14 @@ while true do
    SHOW_ANNOTATIONS = not SHOW_ANNOTATIONS
    print("----")
    print("Annotations: " .. (SHOW_ANNOTATIONS and "ON" or "OFF"))
+   print("")
    displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'd' then
       USE_UNICODE_PIECES = not USE_UNICODE_PIECES
       updateDisplayMode()
       print("----")
       print("Display mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
+      print("")
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 's' then
       local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w")
@@ -1561,6 +1563,7 @@ while true do
       print("=== GAME CODE ===")
       print(code)
       print("================")
+      print("")
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn:match('^s%d+$') then
       local n = tonumber(crdn:match('^s(%d+)$'))
@@ -1576,6 +1579,7 @@ while true do
          print("=== GAME CODE (as of move " .. n .. ") ===")
          print(code)
          print("================")
+         print("")
       end
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'm' then
@@ -1584,7 +1588,7 @@ while true do
          print("No moves played yet.")
       else
           print("----")
-         print("\n=== MOVE LIST ===")
+         print("=== MOVE LIST ===")
          local i = 1
          while i <= #moveHistory do
             local w = moveHistory[i]
@@ -1598,6 +1602,7 @@ while true do
             i = i + 2
          end
          print("================")
+         print("")
       end
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'l' then
@@ -1617,12 +1622,9 @@ while true do
          local nextToMove = result[8] or "b"
          moveHistory = {}
          moveSnapshots = {}
-         print("----")
-         print("=== GAME CODE ===")
-         print(code)
-         print("================")
-         print("Game loaded!\n")
-
+         print("Game loaded!")
+         print("")
+         
          if nextToMove == "b" then
             -- It's Sunfish's turn: show your move that was saved (lastMove
             -- holds it in this case), then play Sunfish's reply now, same
