@@ -44,9 +44,11 @@ Load `sunfish.lua` as a script in Yantra Launcher. In-game commands:
 | `d` | Toggle display mode (Unicode ↔ letters) |
 | `a` | Toggle board annotations |
 | `s` | Save game (generates a code) |
+| `sN` | Save position as of move N (e.g. 's15' saves after move 15) |
 | `l` | Load a saved game |
 | `r` | Resign |
 | `n` | Start a new game |
+| `u` | Check sunfish.lua update |
 | `m1` | Enter mate-in-1 puzzle mode |
 | `q` | Quit |
 
