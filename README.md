@@ -32,6 +32,20 @@ The engine's search and evaluation logic was adapted to run well on a mobile Lua
 - Mate-in-1 puzzle mode (`m1`) with a random puzzle generator and hints
 - In-app help (`h`) and about (`?`) screens
 
+## Screenshots
+
+| Letters mode | Unicode mode |
+| --- | --- |
+| 
+
+![Letters mode](docs/screenshots/screenshot01.jpg)
+
+ | 
+
+![Unicode mode](docs/screenshots/screenshot02.jpg)
+
+ |
+
 ## Usage
 
 Load `sunfish.lua` as a script in Yantra Launcher.
