@@ -12,7 +12,7 @@ A Lua port of [Sunfish](https://github.com/thomasahle/sunfish), a compact chess 
 
 Sunfish itself draws heavily on [Micro-Max by Geert Muller](http://home.hccnet.nl/h.g.muller/max-src2.html) and [PyChess](http://pychess.org).
 
-## What this port changes
+## What this fork changes
 
 The engine's search and evaluation logic was adapted to run well on a mobile Lua environment (Luaj-jse 3.0.1):
 
