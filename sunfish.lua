@@ -51,7 +51,7 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608091715"
+local SCRIPT_VERSION = "2.608100745"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- What's new in the currently running version. Used as a fallback when
@@ -646,12 +646,12 @@ local emptySquareSymbols_letters = {
 
 -- Unicode symbols for pieces
 local whiteSymbols_unicode = {
-   K = '\xe2\x99\x94', Q = '\xe2\x99\x95', R = '\xe2\x99\x96',
-   B = '\xe2\x99\x97', N = '\xe2\x99\x98', P = '\xe2\x99\x99',
-}
-local blackSymbols_unicode = {
    K = '\xe2\x99\x9a', Q = '\xe2\x99\x9b', R = '\xe2\x99\x9c',
    B = '\xe2\x99\x9d', N = '\xe2\x99\x9e', P = '\xe2\x99\x9f',
+}
+local blackSymbols_unicode = {
+   K = '\xe2\x99\x94', Q = '\xe2\x99\x95', R = '\xe2\x99\x96',
+   B = '\xe2\x99\x97', N = '\xe2\x99\x98', P = '\xe2\x99\x99',
 }
 
 -- Letter symbols for pieces
@@ -1624,7 +1624,7 @@ while true do
          moveSnapshots = {}
          print("Game loaded!")
          print("")
-         
+
          if nextToMove == "b" then
             -- It's Sunfish's turn: show your move that was saved (lastMove
             -- holds it in this case), then play Sunfish's reply now, same
