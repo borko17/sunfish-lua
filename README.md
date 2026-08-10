@@ -52,7 +52,7 @@ The engine's search and evaluation logic was adapted to run well on a mobile Lua
 
 ## Usage
 
-Load `sunfish.lua` as a script in Yantra Launcher.
+Load `sunfish.lua` as a script in Yantra Launcher Pro.
 
 **Normal game commands:**
 
