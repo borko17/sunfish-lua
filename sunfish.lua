@@ -52,7 +52,7 @@ local __1 = 1 -- 1-index correction
 -- Update
 -------------------------------------------------------------------------------
 local SCRIPT_VERSION = "2.608091715"
-local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish-lua/main/sunfish.lua"
+local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- What's new in the currently running version. Used as a fallback when
 -- the remote GitHub file can't be reached or parsed (see checkForUpdate).
