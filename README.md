@@ -8,7 +8,7 @@ A Lua port of [Sunfish](https://github.com/thomasahle/sunfish), a compact chess 
 
 - **Original algorithm & Python implementation:** [Thomas Ahle](https://github.com/thomasahle) — [thomasahle/sunfish](https://github.com/thomasahle/sunfish) (also documented at [chessprogramming.org/Sunfish](https://www.chessprogramming.org/Sunfish))
 - **Initial Lua transpilation:** attributed to [Soumith Chintala](https://github.com/soumith) - [soumith/sunfish.lua](https://github.com/soumith/sunfish.lua)
-- **Android / Yantra Launcher Pro adaptation:** [borko17](https://github.com/borko17), with help from Claude AI
+- **Android / Yantra Launcher Pro adaptation:** [Borko Danilović](https://github.com/borko17), with help from Claude AI
 
 Sunfish itself draws heavily on [Micro-Max by Geert Muller](http://home.hccnet.nl/h.g.muller/max-src2.html) and [PyChess](http://pychess.org).
 
