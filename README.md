@@ -1,6 +1,6 @@
-![Sunfish logo](https://raw.github.com/borko17/sunfish-lua/master/docs/logo/sunfish.jpeg)
+![Sunfish logo](https://raw.github.com/borko17/sunfish-lua/master/docs/logo/sunfish01.jpeg)
 
-# sunfish-lua
+# sunfish.lua
 
 A Lua port of [Sunfish](https://github.com/thomasahle/sunfish), a compact chess engine originally written in Python by [Thomas Ahle](https://github.com/thomasahle), adapted to run on Android inside [Yantra Launcher Pro](https://github.com/coderGtm/yantra-app-launcher) (Luaj-jse 3.0.1).
 
