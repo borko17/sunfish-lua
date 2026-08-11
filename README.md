@@ -66,7 +66,7 @@ Load `sunfish.lua` as a script in Yantra Launcher Pro.
 | `s`           | Save game (generates a code)                                |
 | `sN`          | Save position as of move N (e.g. 's15' saves after move 15) |
 | `l`           | Load a saved game                                           |
-| `nN`          | Change engine strength (e.g. 'n4000'. Higher N = harder/slower; lower N = easier/faster. |
+| `nN`          | Change engine strength (e.g. 'n4000'). Higher N = harder/slower; lower N = easier/faster. |
 | `r`           | Resign                                                      |
 | `n`           | Start a new game                                            |
 | `u`           | Check sunfish.lua update                                    |
