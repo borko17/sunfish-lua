@@ -13,10 +13,10 @@ local USE_UNICODE_PIECES = false
 -- Toggle for ( ) ? ! annotation markers
 local SHOW_ANNOTATIONS = true
 
--- Node budget per search. Higher values search deeper but take longer per
--- move on-device; 5000 is a reasonable ceiling before per-move wait times
--- and transposition-table churn start to matter (see TABLE_SIZE below).
-local NODES_SEARCHED = 4000
+-- Node budget per search. Higher values search deeper but take longer per move on-device; 5000 is a reasonable ceiling before per-move wait times and transposition-table churn start to matter (see TABLE_SIZE below).
+
+-- NODES_SEARCHED is a "soft" limit: it means "once you cross this number don't start a new depth". Depth is only checked for completion AFTER a full depth finishes (see the nodes >= maxn check in search()), so bound() is never interrupted partway through a depth. Overshooting by 50-100% within a single depth is normal, especially at deeper searches, where one depth can "eat" a large number of nodes at once because branching grows exponentially with depth.
+local NODES_SEARCHED = 2000
 
 -- Max entries in the transposition table. Reduced from 1e6: Luaj-jse runs
 -- interpreted on the JVM, and a 1e6-entry table is heavy on a phone.
@@ -51,19 +51,15 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608100745"
+local SCRIPT_VERSION = "2.608110437"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- What's new in the currently running version. Used as a fallback when
 -- the remote GitHub file can't be reached or parsed (see checkForUpdate).
 local CHANGELOG = {
-   "50-move-rule draw detection",
-   "halfmove clock now saved/loaded with game codes",
-   "in-app GitHub version check ('u')",
-   "'m' shows the full move history",
-   "'sN' saves the position as of move N",
-   "loaded games now correctly resume with the right side to move",
-   "fixed captured-piece display using the wrong side's symbols",
+   "'nN' command to change engine strength (search node budget, 100-50000) on the fly",
+   "shows search depth, nodes used, and time taken after each Sunfish move",
+   "default node budget lowered to 2000 for faster moves on phone hardware",
 }
 
 -- Parses a Lua "local CHANGELOG = { \"a\", \"b\", ... }" block out of raw
@@ -503,7 +499,7 @@ local QS_A = 140
 
 local function bound(pos, gamma, depth)
     nodes = nodes + 1
-
+    
     local entry = tp_get(pos)
     assert(depth)
     if entry ~= nil and entry.depth >= depth and (
@@ -590,13 +586,9 @@ local function search(pos, maxn)
    maxn = maxn or NODES_SEARCHED
    nodes = 0
    local score
+   local reachedDepth = 0
+   local startTime = os.clock()
 
-   -- Endgame PST swap: once either side is down to a bare king, switch the
-   -- king table to the centralizing "mop-up" version for this whole search
-   -- so the engine actually makes progress driving a lone king to the edge
-   -- (or its own king to the center) instead of shuffling forever. Done
-   -- once per search() call - a single O(board) scan, not per node - so it
-   -- costs nothing noticeable on top of the existing node budget.
    if isBareKingBoard(pos.board) then
       pst.K = pst_K_endgame
    else
@@ -617,17 +609,20 @@ local function search(pos, maxn)
          end
       end
       assert(score)
+      reachedDepth = depth
 
       if nodes >= maxn or math.abs(score) >= MATE_VALUE then
          break
       end
    end
 
+   local elapsed = os.clock() - startTime
+
    local entry = tp_get(pos)
    if entry ~= nil then
-      return entry.move, score
+      return entry.move, score, reachedDepth, nodes, elapsed
    end
-   return nil, score
+   return nil, score, reachedDepth, nodes, elapsed
 end
 
 -------------------------------------------------------------------------------
@@ -1063,24 +1058,27 @@ local function showHelp()
    print("moves - Enter moves in format 'e2e4'")
    print("'h' - Show this help screen")
    print("'?' - Show About screen")
-   print("'d' - Toggle display mode:")
-   print("(Unicode symbols <-> Letters)")
+   print("'d' - Toggle display mode")
+   print("    • Unicode symbols <-> Letters.")
    print("'a' - Toggle annotations")
-   print("(show/hide board markers)")
+   print("    • show/hide board markers.")
    print("'s' - Save game (generate code)")
    print("'sN' - Save position as of move N")
-   print("(e.g. 's15' saves after move 15,")
-   print("even if you've played further)")
+   print("     • e.g. 's15' saves")
+   print("       after move 15,")
+   print("       even if you've") 
+   print("       played further.")
    print("'l' - Load saved game")
+   print("'nN' - Change engine strength")
+   print("     • e.g. 'n4000'")
+   print("     • higher N = harder/slower")
+   print("     • lower N = easier/faster.")
+   print("     • default: n2000")
    print("'m' - Show move history")
    print("'r' - Resign current game")
    print("'n' - Start a new game")
    print("'u' - Check sunfish.lua update")
    print("'q' - Quit chess.lua")
-   print("")
-   print("Note: draws are auto-declared under")
-   print("the 50-move-no-progress rule (no")
-   print("capture or pawn move in 50 moves)")
    print("")
    print("COMMANDS FOR PUZZLE MODE:")
    print("-------------")
@@ -1107,6 +1105,7 @@ local function showHelp()
    print("-------------")
    print("USE_UNICODE_PIECES = true/false")
    print("SHOW_ANNOTATIONS = true/false")
+   print("local NODES_SEARCHED = 2000")
    print("")
    print("PIECE SYMBOLS:")
    print("-------------")
@@ -1175,6 +1174,7 @@ local function showAbout()
    print("KEY CHANGES FOR PHONE USE:")
    print("-------------")
    print("• Node-budget search instead of a timer")
+   print("• Adjustable engine strength ('nN')")
    print("• Smaller, budget-scaled transposition table")
    print("• Zugzwang guard on null-move pruning")
    print("• Endgame king-centralization table")
@@ -1184,11 +1184,13 @@ local function showAbout()
    print("-------------")
    print("• Full legal-move / check / stalemate detection")
    print("• 50-move-rule draw detection")
+   print("Note: draws are auto-declared under the 50-move-no-progress rule (no capture or pawn move in 50 moves)")
    print("• Save & Load games via text codes")
    print("• Move history ('m') and per-move save ('sN')")
    print("• Unicode or letter piece display")
    print("• Check / guard / last-move board markers")
    print("• Captured-piece tracking")
+   print("• Search depth/nodes/time shown after each move")
    print("• Mate-in-1 puzzle mode ('m1') with hints")
    print("")
    print("")
@@ -1557,6 +1559,20 @@ while true do
       print("Display mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
       print("")
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
+      elseif crdn:match('^n%d+$') then
+   local n = tonumber(crdn:match('^n(%d+)$'))
+   if n and n >= 100 and n <= 50000 then
+      NODES_SEARCHED = n
+      TABLE_SIZE = NODES_SEARCHED * 25
+      print("----")
+      print("Node budget set to " .. NODES_SEARCHED)
+      print("(table size " .. TABLE_SIZE .. ")")
+   else
+      print("----")
+      print("Enter a number between 100 and 50000, e.g. 'n2000'")
+   end
+   print("")
+   displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 's' then
       local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w")
       print("----")
@@ -1641,8 +1657,12 @@ while true do
                printboard(pos.board, lastMove, checkersAfterYourMove, guardsAfterYourMove)
             end
             local rotated = pos:rotate()
-            print("Sunfish is thinking...")
-            local enginemove, score = search(rotated)
+            local rotated = pos:rotate()
+print("Sunfish is thinking...")
+local enginemove, score, reachedDepth, usedNodes, elapsed = search(pos)
+assert(score)
+print(string.format("depth %d, %d/%d nodes, %ds", reachedDepth, usedNodes, NODES_SEARCHED, math.floor(elapsed + 0.5)))
+print("")
             if enginemove and not isLegalMove(rotated, enginemove) then
                enginemove = nil
             end
@@ -1797,8 +1817,10 @@ end
       end
 
       print("Sunfish is thinking...")
-      local enginemove, score = search(pos)
-      assert(score)
+local enginemove, score, reachedDepth, usedNodes, elapsed = search(pos)
+assert(score)
+print(string.format("depth %d, %d/%d nodes, %ds", reachedDepth, usedNodes, NODES_SEARCHED, math.floor(elapsed + 0.5)))
+print("")
 
       if score <= -MATE_VALUE then
          print("Checkmate in " .. whiteMoves .. " moves for White!")
