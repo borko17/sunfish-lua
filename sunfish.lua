@@ -41,28 +41,13 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608140951"
+local SCRIPT_VERSION = "2.608142033"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- Fallback changelog used when the remote GitHub file can't be reached/parsed (see checkForUpdate).
 local CHANGELOG = {
-   "engine core rewritten to align with upstream sunfish.py (2026): plays noticeably stronger and more accurately",
-   "pawns can now promote to knight, bishop, or rook, not just queen",
-   "fixed: castling no longer allowed through occupied squares between king and rook",
-   "fixed: pieces sliding onto the back rank no longer miss checks or checkmates delivered there",
-   "fixed: better check detection when capturing pieces",
-   "fixed checkmate and stalemate detection, now consistent throughout the game",
-   "repeated positions are now recognized and treated as a draw while the engine is thinking",
-   "threefold repetition now automatically ends the game as a draw",
-   "puzzle save/load codes now use the same board format as game save/load codes",
-   "fixed: endgame position evaluation no longer interferes with midgame evaluation, including puzzle generation and move selection",
-   "captured pieces display now shows a 'Captured: ' label before the piece list",
-   "move time is now shown next to each move",
-   "engine search info is now shown in the format '(depth X, Y/N nodes)'",
-   "save/load codes now preserve full move history, so threefold-repetition detection works correctly across a save/load",
-   "fixed: underpromotions (to knight, bishop, or rook) are now recorded in the move list and survive save/load correctly, instead of being silently replayed as a queen promotion",
-   "move list ('m') is now printed as a single block, so it's easier to select and copy",
-   "a new option to input 'n' in puzzle mode has been added for a new puzzle."
+   "puzzle mode 'not mate' replies now show why: free king escape squares, or the enemy piece that can capture your checking piece",
+   "puzzle mode hints are now tiered: 'h1'/'h2'/'h3' give progressively stronger hints, while 'h4' shows the full solution"
 }
 
 -- Extracts the CHANGELOG table from raw script text, so 'u' shows what's new in the latest remote version, not the local one.
@@ -1158,9 +1143,9 @@ local function printboard(board, lastMove, checkers, guards, isMate)
    print("")
    local topBorder, sideBorder, bottomBorder
    if USE_UNICODE_PIECES then
-      topBorder = "  \xe2\x95\x94\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x97"
+      topBorder = "  \xe2\x95\x94\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x97"
       sideBorder = "\xe2\x95\x91"
-      bottomBorder = "  \xe2\x95\x9a\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x9d"
+      bottomBorder = "  \xe2\x95\x9a\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x9d"
    else
       topBorder = "  +" .. string.rep("-", 26) .. "+"
       sideBorder = "|"
@@ -1356,6 +1341,48 @@ local function legalMovesOf(pos)
       end
    end
    return out
+end
+
+-- Nakon poteza koji NIJE mat: nabraja polja na koja crni kralj moze legalno
+-- da pobegne. `pos` ovde je pozicija POSLE odigranog poteza, u obliku kako
+-- ga vraca Position:move() (rotirana - iz perspektive crnog), pa je crni
+-- kralj u pos.board predstavljen velikim 'K'. Koordinate mv[2] su u tom
+-- rotiranom sistemu i moraju se vratiti u apsolutne (119 - x) za prikaz.
+local function findKingEscapeSquares(pos)
+   local kIdx = nil
+   for i = 1 - __1, #pos.board - __1 do
+      if pos.board:sub(i + __1, i + __1) == 'K' then
+         kIdx = i
+         break
+      end
+   end
+   if not kIdx then return {} end
+
+   local squares = {}
+   for _, mv in ipairs(pos:genMoves()) do
+      if mv[1] == kIdx and isLegalMove(pos, mv) then
+         table.insert(squares, render(119 - mv[2]))
+      end
+   end
+   return squares
+end
+
+-- Kada kralj nema slobodnih polja: proverava da li crni ima potez kojim
+-- pojede figuru koja daje sah. `pos` je pozicija POSLE odigranog poteza
+-- (rotirana, crni je na potezu = velika slova u pos.board).
+-- checkerSquares su kvadrati (u ISTOM rotiranom sistemu kao pos.board) na
+-- kojima stoje figure koje sahiraju - dobijaju se iz findCheckers(pos).
+local function findCapturingDefenders(pos, checkerSquares)
+   local defenders = {}
+   for _, mv in ipairs(pos:genMoves()) do
+      local target = mv[2]
+      if checkerSquares[target] and isLegalMove(pos, mv) then
+         local fromSq = render(119 - mv[1])
+         local toSq = render(119 - mv[2])
+         table.insert(defenders, fromSq .. " x " .. toSq)
+      end
+   end
+   return defenders
 end
 
 -------------------------------------------------------------------------------
@@ -1683,7 +1710,10 @@ local function showHelp()
    print("COMMANDS FOR PUZZLE MODE:")
    print("-------------")
    print("'m1' - Enter Mate-in-1 puzzle mode")
-   print("'h' - for hint in puzzles")
+   print("'h1' - hint: which piece type mates")
+   print("'h2' - hint: which square to move from")
+   print("'h3' - hint: which square to mate on")
+   print("'h4' - full solution in puzzles")
    print("'s' - Save puzzle")
    print("'l' - Load saved puzzle")
    print("'n' - Start a new puzzle")
@@ -1958,6 +1988,11 @@ local function genAiMateIn1(maxAttempts)
    return nil
 end
 
+local pieceFullNames = {
+   K = "King", Q = "Queen", R = "Rook",
+   B = "Bishop", N = "Knight", P = "Pawn",
+}
+
 -- Returns (solved, quit, newBoard). newBoard lets callers pick up a board
 -- loaded via 'l' — previously a reassignment of `board` inside this function
 -- was lost once the function returned, since only two values came back.
@@ -2008,7 +2043,7 @@ if crdn == 's' then
    print("----")
    print("=== PUZZLE CODE ===")
    print(boardStr)
-   prin7t("==================")
+   print("==================")
    return false, false, board
 end
 
@@ -2060,7 +2095,7 @@ if crdn == 'l' then
    end
 end
 
-   if crdn == 'h' then
+   if crdn == 'h4' then
       local mv = findMateIn1Move(curPos)
       if mv then
           print("----")
@@ -2068,6 +2103,50 @@ end
       else
          print("Couldn't find a solution \n(shouldn't happen).")
         
+      print("Generating puzzle, please wait...")
+   local board = genAiMateIn1()
+   return false, false, board
+      end
+      return false, false, board
+   end
+
+   if crdn == 'h1' then
+      local mv = findMateIn1Move(curPos)
+      if mv then
+         local piece = curPos.board:sub(mv[1] + __1, mv[1] + __1)
+         local pieceName = pieceFullNames[piece] or piece
+         print("----")
+         print("Hint: the mating move is played by a " .. pieceName)
+      else
+         print("Couldn't find a solution \n(shouldn't happen).")
+      print("Generating puzzle, please wait...")
+   local board = genAiMateIn1()
+   return false, false, board
+      end
+      return false, false, board
+   end
+
+   if crdn == 'h2' then
+      local mv = findMateIn1Move(curPos)
+      if mv then
+         print("----")
+         print("Hint: move the piece on " .. render(mv[0 + __1]))
+      else
+         print("Couldn't find a solution \n(shouldn't happen).")
+      print("Generating puzzle, please wait...")
+   local board = genAiMateIn1()
+   return false, false, board
+      end
+      return false, false, board
+   end
+
+   if crdn == 'h3' then
+      local mv = findMateIn1Move(curPos)
+      if mv then
+         print("----")
+         print("Hint: deliver mate on " .. render(mv[1 + __1]))
+      else
+         print("Couldn't find a solution \n(shouldn't happen).")
       print("Generating puzzle, please wait...")
    local board = genAiMateIn1()
    return false, false, board
@@ -2093,7 +2172,18 @@ end
          print("")
          return true, false, board
       else
+         local escapes = findKingEscapeSquares(newPos)
          print(crdn .. " - Not mate. Try again.")
+         if #escapes > 0 then
+            print("Free squares for king movement are: " .. table.concat(escapes, " "))
+         else
+            local defenders = findCapturingDefenders(newPos, checkers)
+            if #defenders > 0 then
+               print("King has no free squares, but watch out: " .. table.concat(defenders, ", "))
+            else
+               print("King has no free squares (mate must be blocked, not shown here).")
+            end
+         end
       end
    end
    return false, false, board
