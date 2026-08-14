@@ -56,7 +56,7 @@ local CHANGELOG = {
    "threefold repetition now automatically ends the game as a draw",
    "puzzle save/load codes now use the same board format as game save/load codes",
    "fixed: endgame position evaluation no longer interferes with midgame evaluation, including puzzle generation and move selection",
-   "captured pieces display now shows a 'Captured items: ' label before the piece list",
+   "captured pieces display now shows a 'Captured: ' label before the piece list",
    "move time is now shown next to each move",
    "engine search info is now shown in the format '(depth X, Y/N nodes)'",
    "save/load codes now preserve full move history, so threefold-repetition detection works correctly across a save/load",
