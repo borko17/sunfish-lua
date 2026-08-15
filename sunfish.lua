@@ -41,12 +41,12 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608151353"
+local SCRIPT_VERSION = "2.608152030"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- Fallback changelog used when the remote GitHub file can't be reached/parsed (see checkForUpdate).
 local CHANGELOG = {
-   "insufficient material (K vs K, K+B vs K, K+N vs K) is now auto-detected and declared a draw instead of playing on",
+   "board now redraws right under invalid-move error messages (bad format, wrong square, illegal move, king left in check), instead of leaving you staring at just the error text"
 }
 
 -- Extracts the CHANGELOG table from raw script text, so 'u' shows what's new in the latest remote version, not the local one.
@@ -2525,12 +2525,16 @@ print("Captured: " .. renderCaptured(capturedByUser, blackSymbols))
       local from = usermove[1]
       if not (from and usermove[2]) then
          print(crdn.. " - Invalid format. Enter a move like 'a1a5'")
+         displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       elseif not isupper(pos.board:sub(from + __1, from + __1)) then
          print(crdn.. " - There's no piece of yours on that square.")
+         displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       elseif not ttfind(pos:genMoves(), usermove) then
          print(crdn.. " - That move is not allowed.")
+         displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       elseif not isLegalMove(pos, usermove) then
          print(crdn.. " - That move leaves your king in check.")
+         displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       else
          if isPromotionMove(pos, usermove) then
             print("Promote to (Q/R/B/N)? [default: Q]")
