@@ -41,13 +41,12 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608142033"
+local SCRIPT_VERSION = "2.608151353"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- Fallback changelog used when the remote GitHub file can't be reached/parsed (see checkForUpdate).
 local CHANGELOG = {
-   "puzzle mode 'not mate' replies now show why: free king escape squares, or the enemy piece that can capture your checking piece",
-   "puzzle mode hints are now tiered: 'h1'/'h2'/'h3' give progressively stronger hints, while 'h4' shows the full solution"
+   "insufficient material (K vs K, K+B vs K, K+N vs K) is now auto-detected and declared a draw instead of playing on",
 }
 
 -- Extracts the CHANGELOG table from raw script text, so 'u' shows what's new in the latest remote version, not the local one.
@@ -555,6 +554,42 @@ local function isBareKingBoard(board)
       end
    end
    return upperCount == 1 or lowerCount == 1
+end
+
+-- Insufficient material: neither side has enough force left to deliver a
+-- forced checkmate, so the game should be declared a draw immediately
+-- instead of playing on to the 50-move rule or repetition. Covers:
+--   K vs K, K+B vs K, K+N vs K, and combinations thereof on both sides
+--   (e.g. K+B vs K+N). Any P, R, or Q on the board is always sufficient
+--   material. K+2N vs K is not a forced mate either, so it's treated as
+--   insufficient too, matching common over-the-board/engine convention.
+local function hasInsufficientMaterial(board)
+   local whiteMinor, blackMinor = 0, 0
+
+   for i = 1, #board do
+      local c = board:sub(i, i)
+      if c ~= '.' and not isspace(c) then
+         local upperC = c:upper()
+         if upperC ~= 'K' then
+            if upperC == 'B' or upperC == 'N' then
+               if isupper(c) then
+                  whiteMinor = whiteMinor + 1
+               else
+                  blackMinor = blackMinor + 1
+               end
+            else
+               -- P, R, or Q present: always sufficient material.
+               return false
+            end
+         end
+      end
+   end
+
+   -- At most one minor piece per side (0 or 1), and the other side bare.
+   if whiteMinor <= 1 and blackMinor == 0 then return true end
+   if blackMinor <= 1 and whiteMinor == 0 then return true end
+
+   return false
 end
 
 local tp = {}
@@ -1143,9 +1178,10 @@ local function printboard(board, lastMove, checkers, guards, isMate)
    print("")
    local topBorder, sideBorder, bottomBorder
    if USE_UNICODE_PIECES then
-      topBorder = "  \xe2\x95\x94\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x97"
-      sideBorder = "\xe2\x95\x91"
-      bottomBorder = "  \xe2\x95\x9a\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x9d"
+      local horiz = '\xe2\x95\x90'  -- ═
+      topBorder    = "  \xe2\x95\x94" .. string.rep(horiz, 26) .. "\xe2\x95\x97"  -- ╔ ... ╗
+      sideBorder   = '\xe2\x95\x91'                                               -- ║
+      bottomBorder = "  \xe2\x95\x9a" .. string.rep(horiz, 26) .. "\xe2\x95\x9d"  -- ╚ ... ╝
    else
       topBorder = "  +" .. string.rep("-", 26) .. "+"
       sideBorder = "|"
@@ -1815,6 +1851,7 @@ local function showAbout()
    print("-------------")
    print("• Full legal-move / check / stalemate detection")
    print("• 50-move-rule draw detection")
+   print("• Insufficient-material draw detection (K vs K, K+B vs K, K+N vs K)")
    print("Note: draws are auto-declared under the 50-move-no-progress rule (no capture or pawn move in 50 moves)")
    print("• Save & Load games via text codes")
    print("• Move history ('m') and per-move save ('sN')")
@@ -2577,6 +2614,10 @@ positionCounts[tpKey(pos)] = (positionCounts[tpKey(pos)] or 0) + 1
          print("Stalemate - draw!")
          break
       end
+      if hasInsufficientMaterial(pos.board) then
+         print("Draw by insufficient material!")
+         break
+      end
       if halfmoveClock >= 100 then
          print("Draw by 50-move rule!")
          break
@@ -2639,6 +2680,11 @@ gameHistory[tpKey(pos)] = true
 positionCounts[tpKey(pos)] = (positionCounts[tpKey(pos)] or 0) + 1
       lastMove = {119 - enginemove[1], 119 - enginemove[2]}
 
+      if hasInsufficientMaterial(pos.board) then
+         printboard(pos.board, lastMove, {}, {})
+         print("Draw by insufficient material!")
+         break
+      end
       if halfmoveClock >= 100 then
          printboard(pos.board, lastMove, {}, {})
          print("Draw by 50-move rule!")
