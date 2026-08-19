@@ -313,11 +313,11 @@ The command `u` checks for a newer version of sunfish.lua. This allows the scrip
 
 Letters mode:
 
-![letters](https://github.com/borko17/sunfish.lua/blob/main/docs%2Fscreenshots%2Fscreenshot001.jpg)
+![letters](https://github.com/borko17/sunfish.lua/blob/main/docs%2Fscreenshots%2Fscreenshot001.png)
 
 Unicode mode:
 
-![unicode](https://github.com/borko17/sunfish.lua/blob/main/docs%2Fscreenshots%2Fscreenshot002.jpg)
+![unicode](https://github.com/borko17/sunfish.lua/blob/main/docs%2Fscreenshots%2Fscreenshot002.png)
 
 
 ## Requirements
