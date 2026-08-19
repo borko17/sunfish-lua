@@ -41,7 +41,7 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608181732"
+local SCRIPT_VERSION = "2.608191230"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- Fallback changelog used when the remote GitHub file can't be reached/parsed (see checkForUpdate).
@@ -2398,6 +2398,9 @@ if crdn == 'l' then
       local result = {loadGame(code)}
       if result[1] then
          board = arrayToBoard(result[1].board)
+         binding.exec("echo -w " .. "=== PUZZLE CODE ===")
+         print(code)
+         binding.exec("echo -w " .. "==================")
          binding.exec("echo -s " .. "Puzzle loaded!")
          return false, false, board
       end
@@ -2737,7 +2740,6 @@ while true do
          end
 
          local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w", moveHistory, startingBoard)
-      print("----")
       binding.exec("echo -w " .. "=== GAME CODE ===")
       print(code)
       binding.exec("echo -w " .. "================")
