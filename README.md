@@ -222,7 +222,7 @@ Load `sunfish.lua` as a script in Yantra Launcher Pro.
 | `s` | Save the current game |
 | `sN` | Save position as of history entry N (e.g. `s15`) |
 | `l` | Load a saved game or position |
-| `nN` | Change engine node budget in the range 100–50000 |
+| `nN` | Change engine node budget in the range 1000–50000 |
 | `r` | Resign |
 | `n` | Start a new game |
 | `u` | Check for a sunfish.lua update |
@@ -262,6 +262,7 @@ Display mode and board annotations can be configured at the top of the script:
 ```lua
 local USE_UNICODE_PIECES = false
 local SHOW_ANNOTATIONS = true
+local NODES_SEARCHED = 2000
 ```
 
 ### Unicode mode
