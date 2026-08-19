@@ -14,7 +14,7 @@ Originally based on the Lua port by [Soumith Chintala](https://github.com/soumit
 
 Sunfish itself draws heavily on [Micro-Max by Geert Muller](http://home.hccnet.nl/h.g.muller/max-src2.html) and [PyChess](http://pychess.org).
 
-## What this version changes
+## What this version changes 
 
 The engine's search and evaluation logic was adapted to run well in a constrained mobile Lua environment (Luaj-jse 3.0.1):
 
