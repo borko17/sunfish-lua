@@ -242,7 +242,7 @@ uses a 4000-node search budget. In general:
 - Lower N = faster / weaker
 - Higher N = slower / stronger
 
-The available range is `n100` to `n50000`. Actual playing strength depends on the position and device performance.
+The available range is `n1000` to `n50000`. Actual playing strength depends on the position and device performance.
 
 ### Mate-in-1 puzzle mode commands
 
