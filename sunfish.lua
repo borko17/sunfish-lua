@@ -41,7 +41,7 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608181703"
+local SCRIPT_VERSION = "2.608181720"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- Fallback changelog used when the remote GitHub file can't be reached/parsed (see checkForUpdate).
@@ -2011,6 +2011,7 @@ local function showHelp()
    print("'q' - Leave puzzle mode")
    print("")
    binding.exec("echo -w " .. "SAVE-GAME FORMATS:")
+   print("-------------")
    print("Load accepts these")
    print("save-game formats (Examples):")
    print("1) Full save:")
@@ -2050,7 +2051,7 @@ local function showHelp()
    print("• Sunfish pieces: k q r b n p")
    print("• Empty squares:  : light . dark")
    print("")
-   binding.exec("echo -w " .. "DEFAULT CONFIGURATION:")
+   binding.exec("echo -w " .. "DEFAULT CONFIGURATION can be changed in CONFIG - section at top of LUA script:")
    print("-------------")
    print("USE_UNICODE_PIECES = true/false")
    print("SHOW_ANNOTATIONS = true/false")
