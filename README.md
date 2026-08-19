@@ -1,4 +1,4 @@
-![Sunfish logo](https://raw.github.com/borko17/sunfish-lua/master/docs/logo/sunfish01.jpeg)
+![Sunfish logo](https://raw.github.com/borko17/sunfish-lua/master/docs/logo/sunfish02.jpeg)
 
 # sunfish.lua
 
