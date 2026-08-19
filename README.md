@@ -262,7 +262,6 @@ Display mode and board annotations can be configured at the top of the script:
 ```lua
 local USE_UNICODE_PIECES = false
 local SHOW_ANNOTATIONS = true
-local NODES_SEARCHED = 2000
 ```
 
 ### Unicode mode
