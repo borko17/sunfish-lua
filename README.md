@@ -379,23 +379,6 @@ Added and extended for the Android/Lua environment:
 - Update checker
 - Help and About screens
 
-## Project structure
-
-```text
-sunfish-lua/
-├── sunfish.lua
-├── README.md
-├── LICENSE.md
-└── docs/
-    ├── logo/
-    │   └── sunfish01.jpeg
-    └── screenshots/
-        ├── screenshot01.jpg
-        └── screenshot02.jpg
-```
-
-The main executable script is `sunfish.lua`. It is designed to be loaded directly by Yantra Launcher Pro.
-
 ## Attribution
 
 **Thomas Ahle**
