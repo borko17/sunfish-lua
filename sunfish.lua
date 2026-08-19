@@ -41,7 +41,7 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608181720"
+local SCRIPT_VERSION = "2.608181732"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- Fallback changelog used when the remote GitHub file can't be reached/parsed (see checkForUpdate).
@@ -2526,7 +2526,7 @@ end
 local function aipuzMate1()
    print("")
    binding.exec("echo -w " .. "=== PUZZLE MODE: MATE IN 1 ===")
-   print("• 'h' for hint")
+   print("• 'h1/h2/h3/h4' for hint")
    print("• 'q' to quit.")
    print("")
    binding.exec("echo -w " .. "Generating puzzle...")
