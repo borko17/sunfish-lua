@@ -41,14 +41,15 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608171300"
+local SCRIPT_VERSION = "2.608181703"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- Fallback changelog used when the remote GitHub file can't be reached/parsed (see checkForUpdate).
 local CHANGELOG = {
-   "board-as-array refactor: Position.board is now a Lua table of byte values instead of a 120-char string, both for reads (genMoves) and writes (move) - move() no longer rebuilds the whole board string on every call, roughly 3x faster in isolation and search() overall runs noticeably faster on the same node budget; save/load, printboard, and the puzzle generator are unaffected since they still work with plain board strings at the boundary",
-   "Sunfish's moves now show evaluation score alongside depth and node count, e.g. 'b2b3 (28s) - score: 9' followed by '(depth 2, 2037/2k nodes)'",
-   "faster move generation (genMoves): now reads board squares via string.byte() instead of string.sub(), skipping the per-square string allocation and slow isupper() pattern-match for empty/padding squares - roughly 30-40% less time spent generating moves per search"
+   "unified save/load format: puzzle saves now use the same compact board:... format as game saves (e.g. board:8;K7;6RN;PB2N3;8;7q;5k2;2Q1R3) instead of plain 8x8 text; load supports both the new compact format and the old 8x8 board text in both puzzle and normal game modes",
+   "fixed duplicate 'Check!' message appearing alongside checkmate - when a move delivers mate, only the checkmate announcement is shown, not a separate 'Check!' line",
+   "plain print() calls for status/result messages (errors, warnings, and success/title lines) converted to binding.exec('echo -e/-w/-s ...') so they render in color (red/yellow/green) instead of the default text color",
+   "fixed loaded games that are already checkmated: when loading a saved position where the side to move has no legal moves and is in check, the game now correctly announces checkmate immediately instead of waiting for a move that can't be made",
 }
 
 -- Extracts the CHANGELOG table from raw script text, so 'u' shows what's new in the latest remote version, not the local one.
@@ -102,22 +103,22 @@ local function checkForUpdate()
    end)
 
    if not ok or not result or result == '' then
-      print("No response from GitHub. Check your connection.")
+      binding.exec("echo -e " .. "No response from GitHub. Check your connection.")
       fallbackToLocalChangelog()
       return
    end
 
    local remoteVersion = result:match('SCRIPT_VERSION%s*=%s*"([%d%.]+)"')
    if not remoteVersion then
-      print("Could not find a version number in the GitHub file.")
+      binding.exec("echo -e " .. "Could not find a version number in the GitHub file.")
       fallbackToLocalChangelog()
       return
    end
 
    if remoteVersion == SCRIPT_VERSION then
-      print("You have the latest version: " .. SCRIPT_VERSION)
+      binding.exec("echo -s " .. "You have the latest version: " .. SCRIPT_VERSION)
    else
-      print("New version available: " .. remoteVersion .. " (current: " .. SCRIPT_VERSION .. ")")
+      binding.exec("echo -w " .. "New version available: " .. remoteVersion .. " (current: " .. SCRIPT_VERSION .. ")")
       print("Download at: https://github.com/borko17/sunfish-lua/blob/main/sunfish.lua")
    end
 
@@ -1580,7 +1581,48 @@ end
 -- Save/Load game functions
 -------------------------------------------------------------------------------
 
-local function saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, nextToMove, moveHistory)
+local function compressSaveRows(boardStr)
+   local rows = {}
+   for row in boardStr:gmatch("[^\r\n]+") do
+      local out = {}
+      local empty = 0
+      for i = 1, #row do
+         local c = row:sub(i, i)
+         if c == "." then
+            empty = empty + 1
+         else
+            if empty > 0 then out[#out + 1] = tostring(empty) end
+            empty = 0
+            out[#out + 1] = c
+         end
+      end
+      if empty > 0 then out[#out + 1] = tostring(empty) end
+      rows[#rows + 1] = table.concat(out)
+   end
+   return table.concat(rows, ";")
+end
+
+local function expandSaveRows(compact)
+   local rows = {}
+   for row in tostring(compact):gmatch("[^;]+") do
+      local out = {}
+      local i = 1
+      while i <= #row do
+         local c = row:sub(i, i)
+         if c >= '1' and c <= '8' then
+            local num = tonumber(c)
+            out[#out + 1] = string.rep(".", num)
+         else
+            out[#out + 1] = c
+         end
+         i = i + 1
+      end
+      rows[#rows + 1] = table.concat(out)
+   end
+   return rows
+end
+
+local function saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, nextToMove, moveHistory, startingBoard)
    local boardStr120 = arrayToBoard(pos.board)
    local boardLines = {}
    for rank = 8, 1, -1 do
@@ -1588,89 +1630,117 @@ local function saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMo
       for file = 0, 7 do
          local idx = A1 + file - 10*(rank-1)
          local c = boardStr120:sub(idx + __1, idx + __1)
-         if isspace(c) then
-            table.insert(line, '.')
-         else
-            table.insert(line, c)
-         end
+         line[#line + 1] = isspace(c) and '.' or c
       end
-      table.insert(boardLines, table.concat(line))
+      boardLines[#boardLines + 1] = table.concat(line)
    end
    local boardStr = table.concat(boardLines, '\n')
+   local compactBoardStr = compressSaveRows(boardStr)
 
    local wcStr = (pos.wc[1] and '1' or '0') .. (pos.wc[2] and '1' or '0')
    local bcStr = (pos.bc[1] and '1' or '0') .. (pos.bc[2] and '1' or '0')
-
    local userCapStr = table.concat(capturedByUser, '')
    local engineCapStr = table.concat(capturedByEngine, '')
    if userCapStr == '' then userCapStr = '-' end
    if engineCapStr == '' then engineCapStr = '-' end
-
    local epStr = tostring(pos.ep or 0)
-
    local lastMoveStr = '--'
-   if lastMove then
-      lastMoveStr = render(lastMove[1]) .. render(lastMove[2])
-   end
+   if lastMove then lastMoveStr = render(lastMove[1]) .. render(lastMove[2]) end
+   local nextStr = (nextToMove == 'w') and 'w' or 'b'
 
-   local nextStr = (nextToMove == "w") and "w" or "b"
-
--- Full move notation history (UCI, e.g. "e2e4"), comma-separated. Lets
--- loadGame() replay from `initial` to rebuild gameHistory/positionCounts,
--- so threefold-repetition detection stays correct across a save/load.
--- '-' means no moves played yet.
    local histStr = '-'
    if moveHistory and #moveHistory > 0 then
       local parts = {}
-      for _, entry in ipairs(moveHistory) do
-         table.insert(parts, entry.notation)
-      end
+      for _, entry in ipairs(moveHistory) do parts[#parts + 1] = entry.notation end
       histStr = table.concat(parts, ',')
    end
 
-   -- Format: metadata line then board
-   local code = "wc:" .. wcStr .. "|bc:" .. bcStr .. "|ep:" .. epStr .. 
-                "|last:" .. lastMoveStr .. "|ucap:" .. userCapStr .. "|ecap:" .. engineCapStr .. 
-                "|wm:" .. whiteMoves .. "|bm:" .. blackMoves .. "|hc:" .. (halfmoveClock or 0) .. 
-                "|next:" .. nextStr .. "|hist:" .. histStr .. "\n" .. boardStr
+   -- Always save the starting position.
+   -- If no custom startingBoard exists, use the standard initial position.
+   local startSource = startingBoard or initial
+   local startBoardStr = nil
+   if startSource then
+      local sbLines = {}
+      for rank = 8, 1, -1 do
+         local line = {}
+         for file = 0, 7 do
+            local idx = A1 + file - 10*(rank-1)
+            local c = startSource:sub(idx + __1, idx + __1)
+            line[#line + 1] = isspace(c) and '.' or c
+         end
+         sbLines[#sbLines + 1] = table.concat(line)
+      end
+      startBoardStr = compressSaveRows(table.concat(sbLines, '\n'))
+   end
 
+   -- New compact one-line format. `c` replaces the old `wc` field.
+   local code = 'c:' .. wcStr .. '|bc:' .. bcStr .. '|ep:' .. epStr ..
+                '|last:' .. lastMoveStr .. '|ucap:' .. userCapStr .. '|ecap:' .. engineCapStr ..
+                '|wm:' .. whiteMoves .. '|bm:' .. blackMoves .. '|hc:' .. (halfmoveClock or 0) ..
+                '|next:' .. nextStr .. '|hist:' .. histStr ..
+                (startBoardStr and ('|start:' .. startBoardStr) or '') ..
+                '|board:' .. compactBoardStr
    return code
 end
 
 local function loadGame(code)
-   -- Check if code has metadata line (contains '|')
-   if code:find('|') then
-      -- Full format with metadata
-      local metadata, boardStr = code:match("(.-)\n(.*)")
-      if not metadata or not boardStr then
-         print("Invalid code format! Expected metadata line then board.")
+   -- NOVO: Podrška za kompresovani puzzle format (board:...)
+   if code:match("^board:") then
+      local compact = code:match("^board:(.+)$")
+      if not compact then return nil end
+      local boardLines = expandSaveRows(compact)
+      if #boardLines ~= 8 then
+         binding.exec("echo -e " .. "Invalid puzzle board! Expected 8 ranks.")
          return nil
       end
+      local fullBoard = '         \n         \n '
+      for rank = 1, 8 do
+         if #boardLines[rank] ~= 8 then
+            binding.exec("echo -e " .. "Invalid rank length in puzzle.")
+            return nil
+         end
+         fullBoard = fullBoard .. boardLines[rank]
+         if rank < 8 then fullBoard = fullBoard .. '\n ' end
+      end
+      fullBoard = fullBoard .. '\n         \n          '
+      local pos = Position.new(fullBoard, 0, {false,false}, {false,false}, 0, 0)
+      -- Vrati u formatu koji očekuju i puzzle i normalni mod
+      return pos, nil, {}, {}, 0, 0, 0, "w", nil, fullBoard
+   end
+
+   -- Check if code has metadata line (contains '|')
+   if code:find('|') then
+      -- New format is one line and stores the current board in board:...
+      -- Old format has metadata on line 1 and an 8x8 board on line 2+.
+      local metadata, oldBoardStr = code:match("^(.-)\n(.*)$")
+      if not metadata then metadata = code end
 
       local parts = {}
       for part in metadata:gmatch('[^|]+') do
          local key, value = part:match("([^:]+):(.*)")
-         if key and value then
-            parts[key] = value
+         if key and value then parts[key] = value end
+      end
+
+      -- Accept both new c: and legacy wc: castling field names.
+      parts.c = parts.c or parts.wc
+      if not parts.c or not parts.bc or not parts.ep or not parts.last or
+         not parts.ucap or not parts.ecap or not parts.wm or not parts.bm or
+         not parts.hc or not parts.next then
+         binding.exec("echo -e " .. "Invalid metadata! Missing required fields.")
+         return nil
+      end
+
+      local boardLines = {}
+      if parts.board then
+         boardLines = expandSaveRows(parts.board)
+      elseif oldBoardStr then
+         for line in oldBoardStr:gmatch("[^\n]+") do
+            boardLines[#boardLines + 1] = line
          end
       end
 
-      if not parts.wc or not parts.bc or not parts.ep or not parts.last or 
-         not parts.ucap or not parts.ecap or not parts.wm or not parts.bm or 
-         not parts.hc or not parts.next then
-         print("Invalid metadata! Missing required fields.")
-         return nil
-      end
-      -- parts.hist is optional: older save codes won't have it. loadGame()
-      -- callers must handle a nil histStr (falls back to no-history seeding).
-
-      local boardLines = {}
-      for line in boardStr:gmatch("[^\n]+") do
-         table.insert(boardLines, line)
-      end
-
       if #boardLines ~= 8 then
-         print("Invalid board! Expected 8 ranks, got " .. #boardLines)
+         binding.exec("echo -e " .. "Invalid board! Expected 8 ranks, got " .. #boardLines)
          return nil
       end
 
@@ -1678,18 +1748,16 @@ local function loadGame(code)
       for rank = 1, 8 do
          local line = boardLines[rank]
          if #line ~= 8 then
-            print("Invalid rank! Expected 8 files, got " .. #line)
+            binding.exec("echo -e " .. "Invalid rank! Expected 8 files, got " .. #line)
             return nil
          end
          fullBoard = fullBoard .. line
-         if rank < 8 then
-            fullBoard = fullBoard .. '\n '
-         end
+         if rank < 8 then fullBoard = fullBoard .. '\n ' end
       end
       fullBoard = fullBoard .. '\n         \n          '
 
-      local wc1 = parts.wc:sub(1,1) == '1'
-      local wc2 = parts.wc:sub(2,2) == '1'
+      local wc1 = parts.c:sub(1,1) == '1'
+      local wc2 = parts.c:sub(2,2) == '1'
       local bc1 = parts.bc:sub(1,1) == '1'
       local bc2 = parts.bc:sub(2,2) == '1'
 
@@ -1723,7 +1791,30 @@ local function loadGame(code)
       -- May be nil (old save codes without the field) or "-" (no moves yet).
       local histStr = parts.hist
 
-      return pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, nextToMove, histStr
+-- May be nil: only present when the game started from a custom/puzzle
+-- position rather than the standard setup. Decode the same rank-joined
+-- format saveGame() wrote, back into a full padded board string.
+      local startingBoard = nil
+      if parts.start then
+         local sbLines = expandSaveRows(parts.start)
+         if #sbLines == 8 then
+            local sb = '         \n         \n '
+            for rank = 1, 8 do
+               if #sbLines[rank] ~= 8 then
+                  sbLines = nil
+                  break
+               end
+               sb = sb .. sbLines[rank]
+               if rank < 8 then sb = sb .. '\n ' end
+            end
+            if sbLines then
+               sb = sb .. '\n         \n          '
+               startingBoard = sb
+            end
+         end
+      end
+
+      return pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, nextToMove, histStr, startingBoard
 
    else
 -- Simple format (board only, 8x8): resets everything else to initial state.
@@ -1733,7 +1824,7 @@ local function loadGame(code)
       end
 
       if #boardLines ~= 8 then
-         print("Invalid board! Expected 8 ranks, got " .. #boardLines)
+         binding.exec("echo -e " .. "Invalid board! Expected 8 ranks, got " .. #boardLines)
          return nil
       end
 
@@ -1741,7 +1832,7 @@ local function loadGame(code)
       for rank = 1, 8 do
          local line = boardLines[rank]
          if #line ~= 8 then
-            print("Invalid rank! Expected 8 files, got " .. #line)
+            binding.exec("echo -e " .. "Invalid rank! Expected 8 files, got " .. #line)
             return nil
          end
          fullBoard = fullBoard .. line
@@ -1760,7 +1851,9 @@ local function loadGame(code)
       local halfmoveClock = 0
       local nextToMove = "w"  -- White (human) to move
 
-      return pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, nextToMove, nil
+-- Simple-format loads are always a custom/puzzle start (no metadata, no
+-- move history yet): this board itself is the game's starting position.
+      return pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, nextToMove, nil, fullBoard
    end
 end
 
@@ -1770,7 +1863,7 @@ end
 -- (old save code without the field), empty, "-", or replay fails for any
 -- reason (corrupted/hand-edited code, illegal move), falls back to seeding
 -- only fallbackPos, same behavior as before this feature existed.
-local function rebuildHistoryFromMoves(histStr, fallbackPos)
+local function rebuildHistoryFromMoves(histStr, fallbackPos, startBoard)
    local gameHistory = {}
    local positionCounts = {}
 
@@ -1785,7 +1878,10 @@ local function rebuildHistoryFromMoves(histStr, fallbackPos)
    end
 
    local ok, err = pcall(function()
-      local replayPos = Position.new(initial, 0, {true,true}, {true,true}, 0, 0)
+-- startBoard lets replay start from a custom/puzzle position instead of
+-- always the standard setup - older save codes without this field fall
+-- back to `initial`, same as before.
+      local replayPos = Position.new(startBoard or initial, 0, {true,true}, {true,true}, 0, 0)
       gameHistory[tpKey(replayPos)] = true
       positionCounts[tpKey(replayPos)] = 1
 
@@ -1842,7 +1938,7 @@ local function rebuildHistoryFromMoves(histStr, fallbackPos)
    end)
 
    if not ok then
-      print("Warning: could not replay move history (" .. tostring(err) .. "). Repetition tracking resets from this position.")
+      binding.exec("echo -w " .. "Warning: could not replay move history (" .. tostring(err) .. "). Repetition tracking resets from this position.")
       seedFallback()
    end
 
@@ -1857,10 +1953,11 @@ local function displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    end
    local checkers = findCheckers(pos)
    local guards = findKingGuards(pos, checkers)
-   if next(checkers) then
-      print("Check!")
+   local isMate = next(checkers) and not hasLegalMove(pos)
+   if next(checkers) and not isMate then
+      binding.exec("echo -s " .. "Check!")
    end
-   printboard(arrayToBoard(pos.board), lastMove, checkers, guards)
+   printboard(arrayToBoard(pos.board), lastMove, checkers, guards, isMate)
    print("Captured: " .. renderCaptured(capturedByUser, blackSymbols))
 end
 
@@ -1870,9 +1967,9 @@ end
 
 local function showHelp()
    print("")
-   print("=== CHESS.LUA HELP ===")
+   binding.exec("echo -w " .. "=== CHESS.LUA HELP ===")
    print("")
-   print("COMMANDS FOR CHESS:")
+   binding.exec("echo -w " .. "COMMANDS FOR CHESS:")
    print("-------------")
    print("moves - Enter moves in format 'e2e4'")
    print("'h' - Show this help screen")
@@ -1881,41 +1978,70 @@ local function showHelp()
    print("    • Unicode symbols <-> Letters.")
    print("'a' - Toggle annotations")
    print("    • show/hide board markers.")
-   print("'s' - Save game (generate code)")
-   print("'sN' - Save position as of move N")
-   print("     • e.g. 's15' saves")
-   print("       after move 15,")
-   print("       even if you've") 
-   print("       played further.")
+   print("'s' - Save current game")
+   print("      (generate code)")
+   print("'sN' - Save position")
+   print("       after history move N")
+   print("     • e.g. 's15' saves the position")
+   print("      after move 15, even if you")
+   print("      have played further.")
    print("'l' - Load saved game")
-   print("'nN' - Change engine strength")
+   print("'nN' - Change engine node budget")
    print("     • e.g. 'n4000'")
    print("     • higher N = harder/slower")
-   print("     • lower N = easier/faster.")
+   print("     • lower N = easier/faster")
    print("     • default: n2000")
    print("'m' - Show move history")
    print("'r' - Resign current game")
    print("'n' - Start a new game")
-   print("'u' - Check sunfish.lua update")
+   print("'u' - Check sunfish.lua for updates")
    print("'q' - Quit chess.lua")
    print("")
-   print("COMMANDS FOR PUZZLE MODE:")
+   binding.exec("echo -w " .. "COMMANDS FOR PUZZLE MODE:")
    print("-------------")
    print("'m1' - Enter Mate-in-1 puzzle mode")
-   print("'h1' - hint: which piece type mates")
-   print("'h2' - hint: which square to move from")
-   print("'h3' - hint: which square to mate on")
-   print("'h4' - full solution in puzzles")
-   print("'s' - Save puzzle")
+   print("'h1' - Hint: which piece type mates")
+   print("'h2' - Hint: which square to move from")
+   print("'h3' - Hint: which square to mate on")
+   print("'h4' - Full solution")
+   print("'s' - Save current puzzle")
    print("'l' - Load saved puzzle")
-   print("'n' - Start a new puzzle")
-   print("'d' - Toggle display mode:")
-   print("'q' - to leave puzzles")
+   print("'n' - Generate a new puzzle")
+   print("'d' - Toggle Unicode / letter display")
+   print("'q' - Leave puzzle mode")
    print("")
-   print("DISPLAY MODES:")
+   binding.exec("echo -w " .. "SAVE-GAME FORMATS:")
+   print("Load accepts these")
+   print("save-game formats (Examples):")
+   print("1) Full save:")
+   print("   c:11|bc:11|ep:0|last:e7e6|ucap:-|ecap:-|wm:2|bm:2|hc:0|next:w|hist:b1c3,g8f6,g1f3,e7e6|start:rnbqkbnr;pppppppp;8;8;8;8;PPPPPPPP;RNBQKBNR|board:rnbqkb1r;pppp1ppp;4pn2;8;8;2N2N2;PPPPPPPP;R1BQKB1R")
+   print(" • Full format restores game state and history.")
+   print("2) Board save:")
+   print("   board:rnbqkb1r;pppp1ppp;4pn2;8;8;2N2N2;PPPPPPPP;R1BQKB1R")
+   print("3) Plain 8x8 board")
+   print("   rnbqkb.r")
+   print("   pppp.ppp")
+   print("   ....pn..")
+   print("   ........")
+   print("   ........")
+   print("   ..N..N..")
+   print("   PPPPPPPP")
+   print("   R.BQKB.R")
+   print(" • Formats 2 and 3 load a board position only.")
+   print(" • Puzzle load accepts formats 2 and 3.")
+   print("")
+   binding.exec("echo -w " .. "GAME RULES / DRAW DETECTION:")
+   print("-------------")
+   print("• Check, checkmate and stalemate are detected")
+   print("• 50-move no-progress draw is automatic")
+   print("• Threefold repetition draw is automatic")
+   print("• Insufficient-material draws are detected")
+   print("• Pawn promotion allows Q, R, B or N")
+   print("")
+   binding.exec("echo -w " .. "DISPLAY MODES:")
    print("-------------")
    print("Unicode mode:")
-   print("• Your pieces:    ♚ ♛ ♜ ♝ ♞ ♟")  
+   print("• Your pieces:    ♚ ♛ ♜ ♝ ♞ ♟")
    print("• Sunfish pieces: ♔ ♕ ♖ ♗ ♘ ♙")
    print("• Empty squares:  • light ◦ dark")
    print("")
@@ -1924,13 +2050,13 @@ local function showHelp()
    print("• Sunfish pieces: k q r b n p")
    print("• Empty squares:  : light . dark")
    print("")
-   print("Default mode can be changed in CONFIG - section at top of LUA script:")
+   binding.exec("echo -w " .. "DEFAULT CONFIGURATION:")
    print("-------------")
    print("USE_UNICODE_PIECES = true/false")
    print("SHOW_ANNOTATIONS = true/false")
    print("local NODES_SEARCHED = 2000")
    print("")
-   print("PIECE SYMBOLS:")
+   binding.exec("echo -w " .. "PIECE SYMBOLS:")
    print("-------------")
    print("K = King   Q = Queen  R = Rook")
    print("B = Bishop N = Knight P = Pawn")
@@ -1938,7 +2064,7 @@ local function showHelp()
    print("uppercase = Your pieces,")
    print("lowercase = Sunfish.")
    print("")
-   print("BOARD MARKERS")
+   binding.exec("echo -w " .. "BOARD MARKERS")
    print("(what symbols mean):")
    print("-------------")
    print(" sym! - piece is giving CHECK")
@@ -1951,10 +2077,10 @@ local function showHelp()
    print("(sym? - piece moved AND guards escape")
    print("")
    print("Note: ( ) shows last move")
-   print("       !  shows check/checkmate")
-   print("       ?  shows guard")
+   print("!  shows check/checkmate")
+   print("?  shows guard")
    print("")
-   print("RECOMMENDED FONTS:")
+   binding.exec("echo -w " .. "RECOMMENDED FONTS:")
    print("-------------")
    print("For Unicode symbols:")
    print("• DejaVu Sans Mono")
@@ -1966,7 +2092,7 @@ local function showHelp()
    print("• Any monospaced font")
    print("")
    print("")
-   print("↑↑↑ CHESS.LUA HELP ↑↑↑")
+   binding.exec("echo -w " .. "↑↑↑ CHESS.LUA HELP ↑↑↑")
 end
 
 -------------------------------------------------------------------------------
@@ -1975,50 +2101,73 @@ end
 
 local function showAbout()
    print("")
-   print("=== ABOUT SUNFISH.LUA ===")
+   binding.exec("echo -w " .. "=== ABOUT SUNFISH.LUA ===")
    print("")
-   print("Lua port of Sunfish,")
-   print("a compact chess engine")
-   print("originally written in Python") 
-   print("by Thomas Ahle")
-   print("(github.com/thomasahle/sunfish).")
+   print("Sunfish.lua is a Lua adaptation of Sunfish,")
+   print("the compact chess engine originally written")
+   print("in Python by Thomas Ahle.")
+   print("github.com/thomasahle/sunfish")
    print("")
-   print("An initial bare-bones Lua") 
-   print("transpilation is attributed")
-   print("to Soumith Chintala.")
+   print("The original Lua port was made by")
+   print("Soumith Chintala.")
+   print("github.com/soumith/sunfish.lua")
    print("")
-   print("Adapted for Yantra Launcher") 
-   print("on Android (Luaj-jse 3.0.1)")
-   print("by borko17 (github.com/borko17),")
-   print("with help from Claude AI.")
+   print("This version is substantially extended")
+   print("for Yantra Launcher on Android")
+   print("(Luaj-jse 3.0.1) by borko17")
+   print("(github.com/borko17), with help from")
+   print("Claude AI.")
    print("")
-   print("Original Python code license: GNU GPL v3")
+   binding.exec("echo -w " .. "PROJECT HERITAGE / LICENSING:")
+   print("-------------")
+   print("• Thomas Ahle Sunfish: GNU GPL v3")
+   print("• Soumith Chintala Lua port: source identifies")
+   print("  its code license as BSD")
+   print("• This version contains substantial")
+   print("  independent modifications and extensions")
    print("")
-   print("KEY CHANGES FOR PHONE USE:")
+   binding.exec("echo -w " .. "ENGINE EXTENSIONS:")
    print("-------------")
    print("• Node-budget search instead of a timer")
-   print("• Adjustable engine strength ('nN')")
+   print("• Adjustable engine strength via 'nN'")
    print("• Smaller, budget-scaled transposition table")
    print("• Zugzwang guard on null-move pruning")
    print("• Endgame king-centralization table")
    print("• Depth-scaled quiescence threshold")
    print("")
-   print("EXTRA FEATURES:")
+   binding.exec("echo -w " .. "CHESS FEATURES:")
    print("-------------")
-   print("• Full legal-move / check / stalemate detection")
+   print("• Legal-move validation")
+   print("• Check, checkmate and stalemate detection")
    print("• 50-move-rule draw detection")
-   print("• Insufficient-material draw detection (K vs K, K+B vs K, K+N vs K)")
-   print("Note: draws are auto-declared under the 50-move-no-progress rule (no capture or pawn move in 50 moves)")
-   print("• Save & Load games via text codes")
-   print("• Move history ('m') and per-move save ('sN')")
-   print("• Unicode or letter piece display")
-   print("• Check / guard / last-move board markers")
+   print("• Threefold-repetition draw detection")
+   print("• Insufficient-material draw detection")
+   print("• Choice of Q, R, B or N on promotion")
    print("• Captured-piece tracking")
-   print("• Search depth/nodes/time shown after each move")
-   print("• Mate-in-1 puzzle mode ('m1') with hints")
+   print("• Move history and position snapshots")
    print("")
+   binding.exec("echo -w " .. "SAVE / DISPLAY:")
+   print("-------------")
+   print("• Save and load games via text codes")
+   print("• Compact save format")
+   print("• Compatibility with the older 8x8 save format")
+   print("• Save/load of individual historical positions")
+   print("• Unicode or letter piece display")
+   print("• Check, guard and last-move board markers")
    print("")
-   print("↑↑↑ ABOUT SUNFISH.LUA ↑↑↑")
+   binding.exec("echo -w " .. "PUZZLES / TOOLS:")
+   print("-------------")
+   print("• Mate-in-1 puzzle generator")
+   print("• Puzzle hints and full solutions")
+   print("• Puzzle save/load")
+   print("• Automatic verification of generated mates")
+   print("• Online update checker ('u')")
+   print("")
+   print("Sunfish.lua remains a compact chess engine,")
+   print("but this version also provides a complete")
+   print("interactive chess environment for Yantra.")
+   print("")
+   binding.exec("echo -w " .. "↑↑↑ ABOUT SUNFISH.LUA ↑↑↑")
 end
 
 -------------------------------------------------------------------------------
@@ -2195,17 +2344,17 @@ local function attemptAiPuzzle(board)
    print("Find mate in 1 move: ")
    local crdn = input()
    if not crdn then
-      print("\nNo input (EOF). Ending puzzle mode.")
+      binding.exec("echo -e " .. "\nNo input (EOF). Ending puzzle mode.")
       return false, true, board
    end
    if crdn == 'q' then
        print("----")
-      print("Leaving puzzle mode.")
+      binding.exec("echo -w " .. "Leaving puzzle mode.")
       return false, true, board
    end
    if crdn == 'n' then
        print("----")
-      print("Generating new puzzle...")
+      binding.exec("echo -w " .. "Generating new puzzle...")
    local board = genAiMateIn1()
    return false, false, board
    end
@@ -2213,7 +2362,7 @@ local function attemptAiPuzzle(board)
    USE_UNICODE_PIECES = not USE_UNICODE_PIECES
    updateDisplayMode()
    print("----")
-   print("Mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
+   binding.exec("echo -w " .. "Mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
    return false, false, board
 end
 
@@ -2225,79 +2374,69 @@ if crdn == 's' then
       for file = 0, 7 do
          local idx = A1 + file - 10*(rank-1)
          local c = curBoardStr:sub(idx + __1, idx + __1)
-         if isspace(c) then
-            table.insert(line, '.')
-         else
-            table.insert(line, c)
-         end
+         table.insert(line, isspace(c) and '.' or c)
       end
-      table.insert(boardLines, table.concat(line))
+      boardLines[#boardLines + 1] = table.concat(line)
    end
    local boardStr = table.concat(boardLines, '\n')
+   local compactBoardStr = compressSaveRows(boardStr)
+   local code = "board:" .. compactBoardStr
    print("----")
-   print("=== PUZZLE CODE ===")
-   print(boardStr)
-   print("==================")
+   binding.exec("echo -w " .. "=== PUZZLE CODE ===")
+   print(code)
+   binding.exec("echo -w " .. "==================")
    return false, false, board
 end
 
 if crdn == 'l' then
-    print("----")
+   print("----")
    print("Paste puzzle code:")
    local code = input()
    if code and code ~= '' then
+      -- Pokušaj prvo preko loadGame (podržava i board: i 8x8 tekst)
+      local result = {loadGame(code)}
+      if result[1] then
+         board = arrayToBoard(result[1].board)
+         binding.exec("echo -s " .. "Puzzle loaded!")
+         return false, false, board
+      end
+      -- Ako loadGame nije uspio, probaj kao običan 8x8 tekst (stari format)
       local boardLines = {}
       for line in code:gmatch("[^\n]+") do
          table.insert(boardLines, line)
       end
-
-      if #boardLines ~= 8 then
-         print("Invalid code! Expected 8 ranks, got " .. #boardLines)
-         return false, false, board
-      end
-
-      local fullBoard = '         \n         \n '
-      local valid = true
-      for rank = 1, 8 do
-         local line = boardLines[rank]
-         if #line ~= 8 then
-            print("Invalid code! Rank " .. rank .. " has " .. #line .. " squares, expected 8.")
-            valid = false
-            break
+      if #boardLines == 8 then
+         local fullBoard = '         \n         \n '
+         local valid = true
+         for rank = 1, 8 do
+            local line = boardLines[rank]
+            if #line ~= 8 then valid = false; break end
+            fullBoard = fullBoard .. line
+            if rank < 8 then fullBoard = fullBoard .. '\n ' end
          end
-         fullBoard = fullBoard .. line
-         if rank < 8 then
-            fullBoard = fullBoard .. '\n '
+         if valid then
+            fullBoard = fullBoard .. '\n         \n          '
+            board = fullBoard
+            binding.exec("echo -s " .. "Puzzle loaded (old format)!")
+            return false, false, board
          end
       end
-
-      if not valid then
-         return false, false, board
-      end
-
-      fullBoard = fullBoard .. '\n         \n          '
-      board = fullBoard
-      local boardStr = table.concat(boardLines, '\n')
-   print("=== PUZZLE CODE ===")
-   print(boardStr)
-   print("==================")
-      print("Puzzle loaded!")
-      return false, false, board
+      binding.exec("echo -e " .. "Invalid code! Could not parse puzzle.")
    else
-      print("Invalid code!")
-      return false, false, board
+      binding.exec("echo -e " .. "No code entered.")
    end
+   return false, false, board
 end
 
    if crdn == 'h4' then
       local mv = findMateIn1Move(curPos)
       if mv then
           print("----")
-         print("Solution: " .. render(mv[0 + __1]) .. render(mv[1 + __1]) .. " (mate)")
+         binding.exec("echo -w " .. "Solution: " .. render(mv[0 + __1]) .. render(mv[1 + __1]) .. " (mate)")
       else
-         print("Couldn't find a solution \n(shouldn't happen).")
+         binding.exec("echo -e " .. "Couldn't find a solution \n(shouldn't happen).")
 
-      print("Generating puzzle, please wait...")
+      binding.exec("echo -w " .. "Generating puzzle...")
    local board = genAiMateIn1()
    return false, false, board
       end
@@ -2310,10 +2449,10 @@ end
          local piece = string.char(curPos.board[mv[1] + __1])
          local pieceName = pieceFullNames[piece] or piece
          print("----")
-         print("Hint: the mating move is played by a " .. pieceName)
+         binding.exec("echo -w " .. "Hint: the mating move is played by a " .. pieceName)
       else
-         print("Couldn't find a solution \n(shouldn't happen).")
-      print("Generating puzzle, please wait...")
+         binding.exec("echo -e " .. "Couldn't find a solution \n(shouldn't happen).")
+      print("Generating puzzle...")
    local board = genAiMateIn1()
    return false, false, board
       end
@@ -2324,10 +2463,10 @@ end
       local mv = findMateIn1Move(curPos)
       if mv then
          print("----")
-         print("Hint: move the piece on " .. render(mv[0 + __1]))
+         binding.exec("echo -w " .. "Hint: move the piece on " .. render(mv[0 + __1]))
       else
-         print("Couldn't find a solution \n(shouldn't happen).")
-      print("Generating puzzle, please wait...")
+         binding.exec("echo -e " .. "Couldn't find a solution \n(shouldn't happen).")
+      print("Generating puzzle...")
    local board = genAiMateIn1()
    return false, false, board
       end
@@ -2338,10 +2477,10 @@ end
       local mv = findMateIn1Move(curPos)
       if mv then
          print("----")
-         print("Hint: deliver mate on " .. render(mv[1 + __1]))
+         binding.exec("echo -w " .. "Hint: deliver mate on " .. render(mv[1 + __1]))
       else
-         print("Couldn't find a solution \n(shouldn't happen).")
-      print("Generating puzzle, please wait...")
+         binding.exec("echo -e " .. "Couldn't find a solution \n(shouldn't happen).")
+         print("Generating puzzle...")
    local board = genAiMateIn1()
    return false, false, board
       end
@@ -2351,31 +2490,31 @@ end
    local move = {parse(crdn:sub(1,2)), parse(crdn:sub(3,4))}
    local from = move[1]
    if not (from and move[2]) then
-      print(crdn .. " - Invalid format. Enter a move like 'd2d4'")
+      binding.exec("echo -e " .. crdn .. " - Invalid format. Enter a move like 'd2d4'")
    elseif not (curPos.board[from + __1] and curPos.board[from + __1] >= 65 and curPos.board[from + __1] <= 90) then -- isupper
-      print(crdn .. " - There's no piece of yours on that square.")
+      binding.exec("echo -e " .. crdn .. " - There's no piece of yours on that square.")
    elseif not ttfind(curPos:genMoves(), move) then
-      print(crdn .. " - That move is not allowed.")
+      binding.exec("echo -e " .. crdn .. " - That move is not allowed.")
    elseif not isLegalMove(curPos, move) then
-      print(crdn .. " - That move leaves your king in check.")
+      binding.exec("echo -e " .. crdn .. " - That move leaves your king in check.")
    else
       local newPos = curPos:move(move)
       local checkers = findCheckers(newPos)
       if next(checkers) and not hasLegalMove(newPos) then
-         print(crdn .. " - Checkmate!")
+         binding.exec("echo -s " .. crdn .. " - Checkmate!")
          print("")
          return true, false, board
       else
          local escapes = findKingEscapeSquares(newPos)
-         print(crdn .. " - Not mate. Try again.")
+         binding.exec("echo -e " .. crdn .. " - Not mate. Try again.")
          if #escapes > 0 then
-            print("Free squares for king movement are: " .. table.concat(escapes, " "))
+            binding.exec("echo -e " .. "Free squares for king movement are: " .. table.concat(escapes, " "))
          else
             local defenders = findCapturingDefenders(newPos, checkers)
             if #defenders > 0 then
-               print("King has no free squares, but watch out: " .. table.concat(defenders, ", "))
+               binding.exec("echo -e " .. "King has no free squares, but watch out: " .. table.concat(defenders, ", "))
             else
-               print("King has no free squares (mate must be blocked, not shown here).")
+               binding.exec("echo -e " .. "King has no free squares (mate must be blocked, not shown here).")
             end
          end
       end
@@ -2385,14 +2524,14 @@ end
 
 local function aipuzMate1()
    print("")
-   print("=== PUZZLE MODE: MATE IN 1 ===")
+   binding.exec("echo -w " .. "=== PUZZLE MODE: MATE IN 1 ===")
    print("• 'h' for hint")
    print("• 'q' to quit.")
    print("")
-   print("Generating puzzle, please wait...")
+   binding.exec("echo -w " .. "Generating puzzle...")
    local board = genAiMateIn1()
    if not board then
-      print("Couldn't generate a puzzle, try again.")
+      binding.exec("echo -e " .. "Couldn't generate a puzzle, try again.")
       return
    end
    while true do
@@ -2400,10 +2539,10 @@ local function aipuzMate1()
       board = newBoard
       if quit then return end
       if solved then
-         print("Generating new puzzle...")
+         binding.exec("echo -w " .. "Generating new puzzle...")
          board = genAiMateIn1()
          if not board then
-            print("Couldn't generate a new puzzle, try again.")
+            binding.exec("echo -e " .. "Couldn't generate a new puzzle, try again.")
             return
          end
       end
@@ -2416,6 +2555,11 @@ end
 
 local function main()
    local pos = Position.new(initial, 0, {true,true}, {true,true}, 0, 0)
+-- Board this game actually started from (standard start, unless a custom/
+-- puzzle position is loaded via 'l' before any moves are played). Saved
+-- alongside the game code so rebuildHistoryFromMoves() replays history
+-- from the real starting point instead of always assuming `initial`.
+   local startingBoard = initial
    local capturedByUser = {}
    local capturedByEngine = {}
    local lastMove = nil
@@ -2432,7 +2576,7 @@ local function main()
    local moveSnapshots = {}
 
    print("")
-   print("=== sunfish.lua v" .. SCRIPT_VERSION .." ===")
+   binding.exec("echo -w " .. "=== sunfish.lua v" .. SCRIPT_VERSION .." ===")
    print("• 'h' for help")
    print("• 'q' to quit.")
 
@@ -2440,7 +2584,7 @@ local function main()
       local checkers = findCheckers(pos)
       local guards = findKingGuards(pos, checkers)
       if next(checkers) then
-         print("Check!")
+         binding.exec("echo -s " .. "Check!")
       end
       printboard(arrayToBoard(pos.board), lastMove, checkers, guards)
 print("Captured: " .. renderCaptured(capturedByUser, blackSymbols))
@@ -2452,7 +2596,7 @@ while true do
    local crdn = input()
    local inputElapsed = os.clock() - startInputTime  -- Izračunaj proteklo vrijeme
    if not crdn then
-      print("\nNo input from terminal (EOF). Ending game.")
+      binding.exec("echo -e " .. "\nNo input from terminal (EOF). Ending game.")
       return
    end
    if crdn == '' then
@@ -2461,7 +2605,7 @@ while true do
    end
    if crdn == 'q' then
        print("----")
-      print("Quitting game.")
+      binding.exec("echo -w " .. "Quitting game.")
       return
    elseif crdn == 'u' then
       print("----")
@@ -2470,34 +2614,34 @@ while true do
       elseif crdn == 'a' then
    SHOW_ANNOTATIONS = not SHOW_ANNOTATIONS
    print("----")
-   print("Annotations: " .. (SHOW_ANNOTATIONS and "ON" or "OFF"))
+   binding.exec("echo -w " .. "Annotations: " .. (SHOW_ANNOTATIONS and "ON" or "OFF"))
    displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'd' then
       USE_UNICODE_PIECES = not USE_UNICODE_PIECES
       updateDisplayMode()
       print("----")
-      print("Display mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
+      binding.exec("echo -w " .. "Display mode: " .. (USE_UNICODE_PIECES and "Unicode" or "Letters"))
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       elseif crdn:match('^n%d+$') then
    local n = tonumber(crdn:match('^n(%d+)$'))
-   if n and n >= 100 and n <= 50000 then
+   if n and n >= 1000 and n <= 50000 then
       NODES_SEARCHED = n
       TABLE_SIZE = NODES_SEARCHED * 25
       print("----")
-      print("Node budget set to " .. NODES_SEARCHED)
-      print("(table size " .. TABLE_SIZE .. ")")
+      binding.exec("echo -w " .. "Node budget set to " .. NODES_SEARCHED)
+      binding.exec("echo -w " .. "(table size " .. TABLE_SIZE .. ")")
    else
       print("----")
-      print("Enter a number between 100 and 50000, e.g. 'n2000'")
+      binding.exec("echo -e " .. "Enter a number between 1000 and 50000, e.g. 'n2000'")
    end
    print("")
    displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 's' then
-      local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w", moveHistory)
+      local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w", moveHistory, startingBoard)
       print("----")
-      print("=== GAME CODE ===")
+      binding.exec("echo -w " .. "=== GAME CODE ===")
       print(code)
-      print("================")
+      binding.exec("echo -w " .. "================")
       print("")
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn:match('^s%d+$') then
@@ -2505,22 +2649,22 @@ while true do
       local snap = moveSnapshots[n]
       if not snap then
           print("----")
-         print("No snapshot for move " .. n .. ". You've played " .. whiteMoves .. " move(s) so far.")
+         binding.exec("echo -e " .. "No snapshot for move " .. n .. ". You've played " .. whiteMoves .. " move(s) so far.")
          print("")
       else
          local code = saveGame(snap.pos, snap.lastMove, snap.capturedByUser, snap.capturedByEngine,
-                                snap.whiteMoves, snap.blackMoves, snap.halfmoveClock, "b", snap.moveHistory)
+                                snap.whiteMoves, snap.blackMoves, snap.halfmoveClock, "b", snap.moveHistory, snap.startingBoard)
         print("----")
-         print("=== GAME CODE (as of move " .. n .. ") ===")
+         binding.exec("echo -w " .. "=== GAME CODE (as of move " .. n .. ") ===")
          print(code)
-         print("================")
+         binding.exec("echo -w " .. "================")
          print("")
       end
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'm' then
       if #moveHistory == 0 then
           print("----")
-         print("No moves played yet.")
+         binding.exec("echo -e " .. "No moves played yet.")
       else
           print("----")
          local out = {"=== MOVE LIST ==="}
@@ -2560,11 +2704,25 @@ while true do
          local histStr = result[9]
          moveSnapshots = {}
 
+-- Track where this (loaded) game actually started, so replay below - and
+-- any future save from this point on - uses the real starting point rather
+-- than always assuming the standard setup. If the code carried no explicit
+-- start (older/hand-written codes) but also carries no history, the loaded
+-- board itself must be the start; otherwise fall back to the standard
+-- position as before (best-effort for old codes missing both fields).
+         if result[10] then
+            startingBoard = result[10]
+         elseif not histStr or histStr == '-' or histStr == '' then
+            startingBoard = arrayToBoard(pos.board)
+         end
+
 -- Rebuild gameHistory/positionCounts by replaying the saved move list from
--- the initial position, so threefold-repetition detection stays correct
--- across this save/load (falls back to seeding just the loaded position if
--- histStr is missing/unparseable, e.g. an older or hand-edited save code).
-         gameHistory, positionCounts = rebuildHistoryFromMoves(histStr, pos)
+-- the real starting position (not always `initial`), so threefold-
+-- repetition detection stays correct across this save/load (falls back to
+-- seeding just the loaded position if histStr is missing/unparseable, e.g.
+-- an older or hand-edited save code, or a custom start that predates a
+-- history that no longer replays cleanly).
+         gameHistory, positionCounts = rebuildHistoryFromMoves(histStr, pos, startingBoard)
 
 -- Reconstruct the notation-only moveHistory (for the 'm' command) from the
 -- same string, so it lines up with the replayed gameHistory/positionCounts.
@@ -2577,12 +2735,12 @@ while true do
             end
          end
 
-         local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w", moveHistory)
+         local code = saveGame(pos, lastMove, capturedByUser, capturedByEngine, whiteMoves, blackMoves, halfmoveClock, "w", moveHistory, startingBoard)
       print("----")
-      print("=== GAME CODE ===")
+      binding.exec("echo -w " .. "=== GAME CODE ===")
       print(code)
-      print("================")
-         print("Game loaded!")
+      binding.exec("echo -w " .. "================")
+         binding.exec("echo -s " .. "Game loaded!")
          print("")
 
          if nextToMove == "b" then
@@ -2593,16 +2751,16 @@ while true do
                local checkersAfterYourMove = findCheckers(pos)
                local guardsAfterYourMove = findKingGuards(pos, checkersAfterYourMove)
                if next(checkersAfterYourMove) then
-                  print("Check!")
+                  binding.exec("echo -s " .. "Check!")
                end
                printboard(arrayToBoard(pos.board), lastMove, checkersAfterYourMove, guardsAfterYourMove)
             end
             local rotated = pos:rotate()
             print("")
-            print("Sunfish is thinking...")
+            binding.exec("echo -w " .. "🐠 Sunfish is thinking...")
 local enginemove, score, reachedDepth, usedNodes, elapsed = search(pos, NODES_SEARCHED, gameHistory)
 assert(score)
-print(string.format("(depth %d, %d/%dk nodes)", reachedDepth, usedNodes, math.floor(NODES_SEARCHED / 1000)))
+binding.exec("echo -w " .. string.format("(depth %d, %d/%dk nodes)", reachedDepth, usedNodes, math.floor(NODES_SEARCHED / 1000)))
             if enginemove and not isLegalMove(rotated, enginemove) then
                enginemove = nil
             end
@@ -2636,7 +2794,7 @@ print(string.format("(depth %d, %d/%dk nodes)", reachedDepth, usedNodes, math.fl
                positionCounts[tpKey(pos)] = (positionCounts[tpKey(pos)] or 0) + 1
                lastMove = {119 - enginemove[1], 119 - enginemove[2]}
             else
-               print("Sunfish has no legal move (checkmate or stalemate).")
+               binding.exec("echo -w " .. "Sunfish has no legal move (checkmate or stalemate).")
             end
          end
 
@@ -2647,23 +2805,35 @@ print(string.format("(depth %d, %d/%dk nodes)", reachedDepth, usedNodes, math.fl
 
          local checkers = findCheckers(pos)
          local guards = findKingGuards(pos, checkers)
+         local loadedMate = next(checkers) ~= nil and not hasLegalMove(pos)
          if next(checkers) then
-            print("Check!")
+            binding.exec("echo -s " .. "Check!")
          end
-         printboard(arrayToBoard(pos.board), lastMove, checkers, guards)
+         printboard(arrayToBoard(pos.board), lastMove, checkers, guards, loadedMate)
 print("Captured: " .. renderCaptured(capturedByUser, blackSymbols))
+-- A loaded code can itself be a finished position (mate/stalemate) if it was
+-- saved/edited that way; check this before handing control back to the
+-- player, or the game would sit waiting for a move that can't be made.
+         if loadedMate then
+            binding.exec("echo -e " .. "Checkmate!")
+            binding.exec("echo -e " .. "You lost")
+            return
+         elseif not hasLegalMove(pos) then
+            binding.exec("echo -w " .. "Stalemate - draw!")
+            return
+         end
       else
-         print("Invalid code. Game continues.")
+         binding.exec("echo -e " .. "Invalid code. Game continues.")
          print("")
       end
    end
    elseif crdn == 'r' then
        print("----")
-      print("You resigned. Black wins!")
+      binding.exec("echo -e " .. "You resigned. Black wins!")
       return
    elseif crdn == 'n' then
        print("----")
-      print("Starting new game...")
+      binding.exec("echo -w " .. "Starting new game...")
       return main()
    elseif crdn == 'h' then
        print("----")
@@ -2675,22 +2845,22 @@ print("Captured: " .. renderCaptured(capturedByUser, blackSymbols))
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    elseif crdn == 'm1' then
       aipuzMate1()
-      print("Resuming the game.")
+      binding.exec("echo -w " .. "Resuming the game.")
       displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
    else
       usermove = {parse(crdn:sub(1,2)), parse(crdn:sub(3,4))}
       local from = usermove[1]
       if not (from and usermove[2]) then
-         print(crdn.. " - Invalid format. Enter a move like 'a1a5'")
+         binding.exec("echo -e " .. crdn.. " - Invalid format. Enter a move like 'a2a3'")
          displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       elseif not (pos.board[from + __1] and pos.board[from + __1] >= 65 and pos.board[from + __1] <= 90) then -- isupper
-         print(crdn.. " - There's no piece of yours on that square.")
+         binding.exec("echo -e " .. crdn .. " - There's no piece of yours on that square.")
          displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       elseif not ttfind(pos:genMoves(), usermove) then
-         print(crdn.. " - That move is not allowed.")
+         binding.exec("echo -e " .. crdn .. " - That move is not allowed.")
          displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       elseif not isLegalMove(pos, usermove) then
-         print(crdn.. " - That move leaves your king in check.")
+         binding.exec("echo -e " .. crdn .. " - That move leaves your king in check.")
          displayPosition(pos, lastMove, capturedByUser, capturedByEngine)
       else
          if isPromotionMove(pos, usermove) then
@@ -2698,7 +2868,7 @@ print("Captured: " .. renderCaptured(capturedByUser, blackSymbols))
             local promoInput = input()
             local promoChar = promoInput and promoInput:upper():sub(1,1) or "Q"
             if promoChar ~= "Q" and promoChar ~= "R" and promoChar ~= "B" and promoChar ~= "N" then
-               print("Invalid choice, defaulting to Queen.")
+               binding.exec("echo -w " .. "Invalid choice, defaulting to Queen.")
                promoChar = "Q"
             end
             usermove[3] = promoChar
@@ -2747,53 +2917,56 @@ positionCounts[tpKey(pos)] = (positionCounts[tpKey(pos)] or 0) + 1
          blackMoves = blackMoves,
          halfmoveClock = halfmoveClock,
          moveHistory = {table.unpack(moveHistory)},
+         startingBoard = startingBoard,
       }
 
       local checkersAfterUser = findCheckers(pos)
-      local guardsAfterUser = findKingGuards(pos, checkersAfterUser)
-      local engineHasMove = hasLegalMove(pos)
-      local isMateNow = next(checkersAfterUser) ~= nil and not engineHasMove
-      local displayCheckers = {}
-      local displayGuards = {}
-      for idx in pairs(checkersAfterUser) do
-         displayCheckers[119 - idx] = true
-      end
-      for idx in pairs(guardsAfterUser) do
-         displayGuards[119 - idx] = true
-      end
-      if next(displayCheckers) then
-         print("Check!")
-      end
-      printboard(arrayToBoard(pos:rotate().board), {usermove[1], usermove[2]}, displayCheckers, displayGuards, isMateNow)
+local guardsAfterUser = findKingGuards(pos, checkersAfterUser)
+local engineHasMove = hasLegalMove(pos)
+local isMateNow = next(checkersAfterUser) ~= nil and not engineHasMove
+local displayCheckers = {}
+local displayGuards = {}
+for idx in pairs(checkersAfterUser) do
+   displayCheckers[119 - idx] = true
+end
+for idx in pairs(guardsAfterUser) do
+   displayGuards[119 - idx] = true
+end
 
-      if isMateNow then
-         print("Checkmate in " .. whiteMoves .. " moves for White!")
-         print("You won")
-         break
-      end
+-- Ispiši "Check!" SAMO ako nije mat
+if next(displayCheckers) and not isMateNow then
+   binding.exec("echo -s " .. "Check!")
+end
+printboard(arrayToBoard(pos:rotate().board), {usermove[1], usermove[2]}, displayCheckers, displayGuards, isMateNow)
+
+if isMateNow then
+   binding.exec("echo -s " .. "Checkmate in " .. whiteMoves .. " moves for White!")
+   binding.exec("echo -s " .. "You won!")
+   break
+end
       if not engineHasMove then
-         print("Stalemate - draw!")
+         binding.exec("echo -w " .. "Stalemate - draw!")
          break
       end
       if hasInsufficientMaterial(pos.board) then
-         print("Draw by insufficient material!")
+         binding.exec("echo -w " .. "Draw by insufficient material!")
          break
       end
       if halfmoveClock >= 100 then
-         print("Draw by 50-move rule!")
+         binding.exec("echo -w " .. "Draw by 50-move rule!")
          break
       end
       if positionCounts[tpKey(pos)] >= 3 then
-         print("Draw by threefold repetition!")
+         binding.exec("echo -w " .. "Draw by threefold repetition!")
          break
       end
-      print("Sunfish is thinking...")
+      binding.exec("echo -w " .. "🐠 Sunfish is thinking...")
 local enginemove, score, reachedDepth, usedNodes, elapsed = search(pos, NODES_SEARCHED, gameHistory)
 assert(score)
-print(string.format("(depth %d, %d/%dk nodes)", reachedDepth, usedNodes, math.floor(NODES_SEARCHED / 1000)))
+binding.exec("echo -w " .. string.format("(depth %d, %d/%dk nodes)", reachedDepth, usedNodes, math.floor(NODES_SEARCHED / 1000)))
       if score <= -MATE_UPPER then
-         print("Checkmate in " .. whiteMoves .. " moves for White!")
-         print("You won")
+         binding.exec("echo -s " .. "Checkmate in " .. whiteMoves .. " moves for White!")
+         binding.exec("echo -s " .. "You won!")
          break
       end
 
@@ -2805,10 +2978,10 @@ print(string.format("(depth %d, %d/%dk nodes)", reachedDepth, usedNodes, math.fl
          local legal = legalMovesOf(pos)
          if #legal == 0 then
             if next(findCheckers(pos)) then
-               print("Checkmate in " .. whiteMoves .. " moves for White!")
-               print("You won")
+               binding.exec("echo -s " .. "Checkmate in " .. whiteMoves .. " moves for White!")
+               binding.exec("echo -s " .. "You won")
             else
-               print("Stalemate - draw!")
+               binding.exec("echo -w " .. "Stalemate - draw!")
             end
             break
          else
@@ -2842,35 +3015,35 @@ positionCounts[tpKey(pos)] = (positionCounts[tpKey(pos)] or 0) + 1
 
       if hasInsufficientMaterial(pos.board) then
          printboard(arrayToBoard(pos.board), lastMove, {}, {})
-         print("Draw by insufficient material!")
+         binding.exec("echo -w " .. "Draw by insufficient material!")
          break
       end
       if halfmoveClock >= 100 then
          printboard(arrayToBoard(pos.board), lastMove, {}, {})
-         print("Draw by 50-move rule!")
+         binding.exec("echo -w " .. "Draw by 50-move rule!")
          break
       end
       if positionCounts[tpKey(pos)] >= 3 then
          printboard(arrayToBoard(pos.board), lastMove, {}, {})
-         print("Draw by threefold repetition!")
+         binding.exec("echo -w " .. "Draw by threefold repetition!")
          break
       end
-      if score >= MATE_UPPER then
-   -- Confirm actual mate rather than trusting the score alone.
+   -- Always confirm mate against the real position, not just when the
+   -- search score crosses MATE_UPPER - a shallow/imperfect score can miss
+   -- an actual mate, leaving the game stuck on "Check!" forever.
    local matingCheckers = findCheckers(pos)
    local matingGuards = findKingGuards(pos, matingCheckers)
 
    -- Check + no legal moves = mate.
    if next(matingCheckers) and not hasLegalMove(pos) then
       printboard(arrayToBoard(pos.board), lastMove, matingCheckers, matingGuards, true)
-      print("Checkmate!")
-      print("You lost")
+      binding.exec("echo -e " .. "Checkmate!")
+      binding.exec("echo -e " .. "You lost")
       break
-   else
-      -- Score was wrong; play the move and continue.
-      print("Evaluation error detected. Continuing game...")
+   elseif score >= MATE_UPPER then
+      -- Score claimed mate but the position isn't actually mate; play on.
+      binding.exec("echo -e " .. "Evaluation error detected. Continuing game...")
    end
-end
    end
 end
 
