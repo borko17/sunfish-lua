@@ -413,11 +413,8 @@ For upstream attribution and licensing information, see:
 
 ## Status
 
-This is a lightweight, self-contained chess engine and terminal chess application intended primarily for:
+This is a lightweight, self-contained chess engine and terminal chess application for Android (Yantra Launcher Pro / Luaj-jse 3.0.1), built for:
 
-- Android
-- Yantra Launcher Pro
-- Luaj-jse 3.0.1
 - Terminal-based chess
 - Chess-engine experimentation
 - Compact text-based position storage
