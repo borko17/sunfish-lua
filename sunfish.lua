@@ -41,15 +41,12 @@ local __1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Update
 -------------------------------------------------------------------------------
-local SCRIPT_VERSION = "2.608191230"
+local SCRIPT_VERSION = "2.608211300"
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/borko17/sunfish.lua/main/sunfish.lua"
 
 -- Fallback changelog used when the remote GitHub file can't be reached/parsed (see checkForUpdate).
 local CHANGELOG = {
-   "unified save/load format: puzzle saves now use the same compact board:... format as game saves (e.g. board:8;K7;6RN;PB2N3;8;7q;5k2;2Q1R3) instead of plain 8x8 text; load supports both the new compact format and the old 8x8 board text in both puzzle and normal game modes",
-   "fixed duplicate 'Check!' message appearing alongside checkmate - when a move delivers mate, only the checkmate announcement is shown, not a separate 'Check!' line",
-   "plain print() calls for status/result messages (errors, warnings, and success/title lines) converted to binding.exec('echo -e/-w/-s ...') so they render in color (red/yellow/green) instead of the default text color",
-   "fixed loaded games that are already checkmated: when loading a saved position where the side to move has no legal moves and is in check, the game now correctly announces checkmate immediately instead of waiting for a move that can't be made",
+   "Search progress output (depth N, nodes/Nk nodes) now prints after each completed depth in the iterative deepening loop instead of only at the end.",
 }
 
 -- Extracts the CHANGELOG table from raw script text, so 'u' shows what's new in the latest remote version, not the local one.
@@ -1180,6 +1177,11 @@ local function search(pos, maxn, history)
       finalScore = score
       reachedDepth = depth
 
+      binding.exec("echo -w " .. string.format(
+         "(depth %d, %d/%dk nodes)",
+         depth, nodes, math.floor(maxn / 1000)
+      ))
+
       if nodes >= maxn or
          math.abs(score) >= MATE_UPPER then
          break
@@ -1990,7 +1992,7 @@ local function showHelp()
    print("     • e.g. 'n4000'")
    print("     • higher N = harder/slower")
    print("     • lower N = easier/faster")
-   print("     • default: n2000")
+   print("     • default: n10000")
    print("'m' - Show move history")
    print("'r' - Resign current game")
    print("'n' - Start a new game")
@@ -2055,7 +2057,7 @@ local function showHelp()
    print("-------------")
    print("USE_UNICODE_PIECES = true/false")
    print("SHOW_ANNOTATIONS = true/false")
-   print("local NODES_SEARCHED = 2000")
+   print("local NODES_SEARCHED = 10000")
    print("")
    binding.exec("echo -w " .. "PIECE SYMBOLS:")
    print("-------------")
@@ -2763,7 +2765,6 @@ while true do
             binding.exec("echo -w " .. "🐠 Sunfish is thinking...")
 local enginemove, score, reachedDepth, usedNodes, elapsed = search(pos, NODES_SEARCHED, gameHistory)
 assert(score)
-binding.exec("echo -w " .. string.format("(depth %d, %d/%dk nodes)", reachedDepth, usedNodes, math.floor(NODES_SEARCHED / 1000)))
             if enginemove and not isLegalMove(rotated, enginemove) then
                enginemove = nil
             end
@@ -2966,7 +2967,6 @@ end
       binding.exec("echo -w " .. "🐠 Sunfish is thinking...")
 local enginemove, score, reachedDepth, usedNodes, elapsed = search(pos, NODES_SEARCHED, gameHistory)
 assert(score)
-binding.exec("echo -w " .. string.format("(depth %d, %d/%dk nodes)", reachedDepth, usedNodes, math.floor(NODES_SEARCHED / 1000)))
       if score <= -MATE_UPPER then
          binding.exec("echo -s " .. "Checkmate in " .. whiteMoves .. " moves for White!")
          binding.exec("echo -s " .. "You won!")
