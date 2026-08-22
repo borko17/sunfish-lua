@@ -1,4 +1,4 @@
-SCRIPT_VERSION = "2.608211300"
+SCRIPT_VERSION = "2.608211301"
 CHANGELOG = {
    "Search progress output (depth N, nodes/Nk nodes) now prints after each completed depth in the iterative deepening loop instead of only at the end.",
 }
